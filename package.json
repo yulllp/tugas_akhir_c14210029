@@ -1,0 +1,40 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.8.2",
+    "concurrently": "^9.0.1",
+    "flowbite": "^3.1.2",
+    "laravel-vite-plugin": "^1.2.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.4",
+    "vite": "^6.2.4"
+  },
+  "dependencies": {
+    "@preline/combobox": "^3.0.0",
+    "alpinejs": "^3.14.9",
+    "apexcharts": "^3.46.0",
+    "body-parser": "^2.2.0",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
+    "express": "^5.1.0",
+    "qz-tray": "^2.2.4",
+    "simple-datatables": "^10.0.0"
+  },
+  "name": "kelontong-app",
+  "description": "<p align=\"center\"><a href=\"https://laravel.com\" target=\"_blank\"><img src=\"https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg\" width=\"400\" alt=\"Laravel Logo\"></a></p>",
+  "version": "1.0.0",
+  "main": "vite.config.js",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

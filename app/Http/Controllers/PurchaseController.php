@@ -1,0 +1,321 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Product;
+use App\Models\ProductPrice;
+use App\Models\ProductPurchase;
+use App\Models\Purchase;
+use App\Models\Supplier;
+use App\Models\TempPurchase;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+
+class PurchaseController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        return view('purchase.index', [
+            'title' => 'Pembelian',
+        ]);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        $products = Product::with('latestPrice')->get();
+        $suppliers = Supplier::all();
+        return view('purchase.create', [
+            'title' => 'Pembelian',
+            'products' => $products,
+            'suppliers' => $suppliers,
+        ]);
+    }
+
+    public function getTempPurchase()
+    {
+        $tempPurchases = TempPurchase::with(['product.latestPrice'])->get();
+
+        $formatted = $tempPurchases->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => $item->product->name,
+                'price' => $item->product->latestPrice->sellPrice ?? 0,
+                'buyPrice' => $item->buyPrice,
+                'qty' => $item->qty,
+                'expDate' => $item->expDate,
+                'subtotal' => $item->subtotal,
+            ];
+        });
+
+        return response()->json($formatted);
+    }
+
+    public function storeTemp(Request $request)
+    {
+        $request->validate([
+            'product_id' => 'required|exists:products,id',
+            'qty'        => 'required|integer|min:1',
+            'buyPrice'   => 'required|numeric|min:0',
+            'expDate'    => 'nullable|date|after_or_equal:today',
+        ]);
+
+        $userId = Auth::id();
+
+        // Prevent duplicate entry for same product and user
+        $existing = TempPurchase::where('user_id', $userId)
+            ->where('product_id', $request->product_id)
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Produk sudah ditambahkan.',
+            ]);
+        }
+
+        $qty = $request->qty;
+        $buyPrice = $request->buyPrice;
+        $subtotal = $buyPrice * $qty;
+
+        TempPurchase::create([
+            'user_id'    => $userId,
+            'product_id' => $request->product_id,
+            'qty'        => $qty,
+            'buyPrice'   => $buyPrice,
+            'subtotal'   => $subtotal,
+            'expDate'    => $request->expDate,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Produk berhasil ditambahkan.',
+        ]);
+    }
+
+    public function deleteTemp(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:temp_purchases,id',
+        ]);
+
+        $deleted = TempPurchase::where('id', $request->id)->where('user_id', Auth::id())->delete();
+
+        if ($deleted) {
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Item tidak ditemukan atau tidak dapat dihapus.']);
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $final = json_decode($request->input('final_transaction'), true);
+
+        if (!$final || !is_array($final)) {
+            return redirect()
+                ->route('purchases.create')
+                ->with('error', 'Format pembelian tidak valid.');
+        }
+
+        $validated = Validator::make($final, [
+            'faktur'     => 'required|string',
+            'total'       => 'required|numeric|min:0',
+            'paid'        => 'required|numeric|min:0',
+            'supplier_id' => 'required|exists:suppliers,id',
+            'credit'      => 'required|boolean',
+            'shipping'    => 'required|in:arrive,pending',
+        ]);
+
+        if ($validated->fails()) {
+            return redirect()
+                ->route('purchases.create')
+                ->withErrors($validated)
+                ->withInput();
+        }
+
+        $tempItems = TempPurchase::with('product')->where('user_id', Auth::id())->get();
+
+        if ($tempItems->isEmpty()) {
+            return redirect()
+                ->route('purchases.create')
+                ->with('error', 'Tidak ada item pembelian.');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $entryDate = $final['shipping'] === 'arrive' ? now()->toDateString() : null;
+
+            $purchase = Purchase::create([
+                'user_id'     => Auth::id(),
+                'buyDate'     => Carbon::now(),
+                'supplier_id' => $final['supplier_id'],
+                'faktur'     => $final['faktur'],
+                'total'       => $final['total'],
+                'prePaid'     => $final['paid'],
+                'status'      => $final['credit'] ? 'unpaid' : 'paid',
+                'shipping'    => $final['shipping'],
+                'entryDate'   => $entryDate,
+            ]);
+
+            foreach ($tempItems as $temp) {
+                $product = Product::find($temp->product_id);
+                if (!$product) {
+                    DB::rollBack();
+                    return redirect()
+                        ->route('purchases.create')
+                        ->with('error', "Produk tidak ditemukan untuk ID: {$temp->product_id}");
+                }
+
+                $latestPrice = $product->latestPrice()->first();
+
+                if (!$latestPrice) {
+                    ProductPrice::create([
+                        'product_id' => $product->id,
+                        'sellPrice'  => $temp->price,
+                    ]);
+                } else {
+                    if ($temp->buyPrice > $latestPrice->sellPrice) {
+                        $lastPurchase = $product->productPurchases()->latest()->first();
+
+                        $newSellPrice = $temp->buyPrice;
+                        if ($lastPurchase) {
+                            $oldBuy = $lastPurchase->buyPrice;
+                            $oldSell = $latestPrice->sellPrice;
+                            $diff = $oldSell - $oldBuy;
+                            $newSellPrice = $temp->buyPrice + $diff;
+                        }
+
+                        ProductPrice::create([
+                            'product_id' => $product->id,
+                            'sellPrice'  => $newSellPrice,
+                        ]);
+                    }
+                }
+
+                ProductPurchase::create([
+                    'purchase_id' => $purchase->id,
+                    'product_id'  => $product->id,
+                    'qty'         => $temp->qty,
+                    'buyPrice'    => $temp->buyPrice,
+                    'subtotal'    => $temp->subtotal,
+                    'expDate'     => $temp->expDate,
+                ]);
+
+                if ($final['shipping'] === 'arrive') {
+                    $product->increment('totalStok', $temp->qty);
+                }
+            }
+
+            TempPurchase::where('user_id', Auth::id())->delete();
+
+            DB::commit();
+
+            return redirect()->route('purchases.create')->with('success', 'Pembelian berhasil disimpan.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()
+                ->route('purchases.create')
+                ->with('error', 'Terjadi kesalahan saat menyimpan pembelian: ' . $e->getMessage());
+        }
+    }
+
+
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Purchase $purchase)
+    {
+        $title = 'Detail Pembelian #' . $purchase->id;
+        $purchase->load('productPurchase.product');
+        return view('purchase.show', compact('purchase', 'title'));
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(int $id)   // ← route parameter is now the ID
+    {
+        $purchase  = Purchase::with('productPurchase.product')->findOrFail($id);
+
+        $suppliers = Supplier::orderBy('name')->get();
+
+        return view('purchase.edit', [
+            'purchase'  => $purchase,
+            'suppliers' => $suppliers,
+            'title'     => 'Edit Pembelian #' . $purchase->id,
+        ]);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, int $id)
+    {
+        $purchase = Purchase::with('productPurchase')
+            ->findOrFail($id);
+
+
+        $validated = Validator::make($request->all(), [
+            'buyDate'     => 'required|date_format:Y-m-d',
+            'supplier_id' => 'required|exists:suppliers,id',
+            'shipping'    => 'required|in:arrive,pending',
+        ])->validate();
+
+        $shippingWasPending = $purchase->shipping === 'pending';
+        $shippingNowArrive  = $validated['shipping'] === 'arrive';
+        $shouldUpdateStock  = $shippingWasPending && $shippingNowArrive;
+
+        DB::transaction(function () use (
+            $purchase,
+            $validated,
+            $shouldUpdateStock,
+        ) {
+
+            $purchase->update([
+                'buyDate'   => Carbon::createFromFormat('Y-m-d', $validated['buyDate'])
+                    ->toDateString(),
+                'supplier_id' => $validated['supplier_id'],
+                // only allow “shipping” to be set once to arrive
+                'shipping'  => $purchase->shipping === 'arrive'
+                    ? 'arrive'                      // already arrived → lock
+                    : $validated['shipping'],
+                'entryDate' => $shouldUpdateStock
+                    ? now()->toDateString()
+                    : $purchase->entryDate,
+            ]);
+
+            if ($shouldUpdateStock) {
+                foreach ($purchase->productPurchase as $item) {
+                    $item->product()->increment('totalStok', $item->qty);
+                }
+            }
+        });
+
+        return redirect()
+            ->route('purchases.show', $purchase->id)
+            ->with('success', 'Pembelian berhasil diperbarui.');
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(Purchase $purchase)
+    {
+        //
+    }
+}
