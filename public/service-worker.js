@@ -1,14 +1,14 @@
 // public/service-worker.js
 
 self.addEventListener('push', function (event) {
-  let data = { title: 'New Notification', body: 'You have a new message.'};
+  let data = { title: 'New Notification', body: 'You have a new message.', icon: '/favicon.ico' };
   if (event.data) {
     data = event.data.json();
   }
 
   const options = {
     body: data.body,
-    icon: data.icon,
+    icon: data.icon || '/favicon.ico',
     badge: data.badge || null,
     data: data.data || {},
   };
