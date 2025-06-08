@@ -20,8 +20,6 @@
     "@preline/combobox": "^3.0.0",
     "alpinejs": "^3.14.9",
     "apexcharts": "^3.46.0",
-    "body-parser": "^2.2.0",
-    "express": "^5.1.0",
     "qz-tray": "^2.2.4",
     "simple-datatables": "^10.0.0"
   },
