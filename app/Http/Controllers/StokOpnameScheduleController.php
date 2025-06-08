@@ -35,20 +35,44 @@ class StokOpnameScheduleController extends Controller
      */
     public function store(Request $request)
     {
+
+        // Validasi input
         $request->validate([
-            'tanggal_opname' => 'required|date_format:d-m-Y H:i',
-            'description' => 'nullable|string',
+            'tanggal_opname' => 'required|date_format:Y-m-d\TH:i',
+            'description'    => 'nullable|string',
         ]);
 
-        StokOpnameSchedule::create([
-            'date' => Carbon::createFromFormat('d-m-Y H:i', $request->tanggal_opname),
-            'description' => $request->description,
-            'status' => 'not_checked',
-            'notify' => false,
-            'user_id' => Auth::id(),
-        ]);
+        try {
 
-        return redirect()->back()->with('success', 'Jadwal stok opname berhasil ditambahkan.');
+            // Coba menyimpan ke database
+            $schedule = StokOpnameSchedule::create([
+                'date'        => $request->tanggal_opname,
+                'description' => $request->description,
+                'status'      => 'not_checked',
+                'user_id'     => Auth::id(),
+            ]);
+
+            activity('stok_opname')
+                ->performedOn($schedule)
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'id_schedule'     => $schedule->id,
+                    'tanggal_opname'  => Carbon::parse($schedule->date)->format('d-m-Y H:i'),
+                    'keterangan'      => $schedule->description,
+                    'dibuat_oleh'     => Auth::user()->name,
+                ])
+                ->log("Jadwal stok opname #{$schedule->id} berhasil dibuat");
+
+            // Jika sukses, redirect seperti biasa
+            return redirect()->back()->with('success', 'Jadwal stok opname berhasil ditambahkan.');
+        } catch (\Exception $e) {
+            // Jika ada error (misalnya format tanggal salah, koneksi DB, dll), tampilkan detailnya
+            dd([
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+                'input'   => $request->all(),
+            ]);
+        }
     }
 
 
@@ -125,6 +149,15 @@ class StokOpnameScheduleController extends Controller
             ]);
 
             DB::commit();
+
+            activity('stok_opname')
+                ->performedOn($schedule)
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'id_schedule'     => $schedule->id,
+                    'selesai_pada'    => $schedule->finish_at->format('d-m-Y H:i'),
+                ])
+                ->log("Detail stok opname untuk jadwal #{$schedule->id} berhasil disimpan");
 
             return redirect()
                 ->route('opnames.index')

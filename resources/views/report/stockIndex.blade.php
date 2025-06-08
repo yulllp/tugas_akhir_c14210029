@@ -409,22 +409,22 @@
         $('#tbody-mov').empty();
         if (paginated.length === 0) {
           $('#tbody-mov').append(`
-            <tr>
-              <td colspan="4" class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">
-                Tidak ada data
-              </td>
-            </tr>
-          `);
+      <tr>
+        <td colspan="4" class="px-4 py-2 text-center text-gray-700 dark:text-gray-300">
+          Tidak ada data
+        </td>
+      </tr>
+    `);
         } else {
           paginated.forEach(item => {
             let colorClass = item.qty < 0 ? 'text-red-600' : 'text-green-600';
             let row = `
-              <tr>
-                <td class="px-4 py-2 text-gray-700 dark:text-gray-200">${item.date}</td>
-                <td class="px-4 py-2 text-gray-700 dark:text-gray-200">${item.type}</td>
-                <td class="px-4 py-2 text-right ${colorClass}">${item.qty}</td>
-                <td class="px-4 py-2 text-gray-700 dark:text-gray-200">${item.description}</td>
-              </tr>`;
+        <tr>
+          <td class="px-4 py-2 text-gray-700 dark:text-gray-200">${item.date}</td>
+          <td class="px-4 py-2 text-gray-700 dark:text-gray-200">${item.type}</td>
+          <td class="px-4 py-2 text-right ${colorClass}">${item.qty}</td>
+          <td class="px-4 py-2 text-gray-700 dark:text-gray-200">${item.description}</td>
+        </tr>`;
             $('#tbody-mov').append(row);
           });
         }
@@ -557,7 +557,6 @@
           data: params,
           method: 'GET',
           success: function(response) {
-
             let stockBefore = response.stock_before;
             let stockChange = response.stock_change;
             let stockLast = response.stock_last;
@@ -565,10 +564,9 @@
             $('#stock-change').text(stockChange);
             $('#stock-last').text(stockLast);
 
-            // 2. Ambil data detail movement
             let movements = response.movements;
             if (!movements || movements.length === 0) {
-              // Jika tidak ada aktivitas
+              // Tidak ada aktivitas: kosongkan chart dan table
               chartMov.updateOptions({
                 series: [],
                 xaxis: {
@@ -580,35 +578,51 @@
               return;
             }
 
-            let dates = Array.from(new Set(movements.map(item => item.date))).sort();
+            let rawDateTimes = movements.map(item => item.date);
+            let allDatesOnly = rawDateTimes.map(dt => dt.split(' ')[0]);
+
+            let uniqueDates = Array.from(new Set(allDatesOnly));
+            uniqueDates.sort((a, b) => {
+              // a, b = "dd-mm-YYYY"
+              let pa = a.split('-'),
+                pb = b.split('-');
+              let da = new Date(pa[2], pa[1] - 1, pa[0]);
+              let db = new Date(pb[2], pb[1] - 1, pb[0]);
+              return da - db;
+            });
+
             let types = Array.from(new Set(movements.map(item => item.type)));
 
-            let map = {};
-            dates.forEach(d => {
-              map[d] = {};
-              types.forEach(t => map[d][t] = 0);
+            let mapByDay = {};
+            uniqueDates.forEach(dateOnly => {
+              mapByDay[dateOnly] = {};
+              types.forEach(t => {
+                mapByDay[dateOnly][t] = 0;
+              });
             });
 
             movements.forEach(item => {
-              if (map[item.date] && typeof map[item.date][item.type] !== 'undefined') {
-                map[item.date][item.type] += item.qty;
+              let dateOnly = item.date.split(' ')[0];
+
+              if (mapByDay[dateOnly] && typeof mapByDay[dateOnly][item.type] !== 'undefined') {
+                mapByDay[dateOnly][item.type] += item.qty;
               }
             });
 
             let series = types.map(t => ({
               name: t,
-              data: dates.map(d => map[d][t])
+              data: uniqueDates.map(d => mapByDay[d][t])
             }));
 
             chartMov.updateOptions({
               xaxis: {
-                categories: dates.map(d => formatTanggalIndonesia(d))
+                categories: uniqueDates
               },
               series: series
             });
 
             movData = movements.map(item => ({
-              date: formatTanggalIndonesia(item.date),
+              date: item.date,
               type: item.type,
               qty: item.qty,
               description: item.description
@@ -632,6 +646,7 @@
           }
         });
       }
+
 
       function formatTanggalIndonesia(dateString) {
         let dt = new Date(dateString);

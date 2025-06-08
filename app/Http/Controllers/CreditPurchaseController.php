@@ -14,7 +14,9 @@ class CreditPurchaseController extends Controller
      */
     public function index()
     {
-        //
+        return view('credit.indexSupplier', [
+            'title' => 'Utang Supplier',
+        ]);
     }
 
     /**
@@ -31,28 +33,42 @@ class CreditPurchaseController extends Controller
     public function store(Request $request, Purchase $purchase)
     {
         $payload = $request->validate([
-            'payDate'        => ['required', 'date'],
-            'payment_total'  => ['required', 'numeric', 'min:1'],
-            'description'    => ['nullable', 'string'],
+            'payDate' => ['required', 'date_format:Y-m-d\TH:i'],
+            'payment_total' => ['required', 'numeric', 'min:1'],
+            'description'   => ['nullable', 'string'],
         ]);
 
         DB::transaction(function () use ($purchase, $payload) {
-
-            // Lock parent row to avoid race conditions
             $purchase->lockForUpdate();
 
-            $remaining = $purchase->total - $purchase->prePaid;
-            if ($payload['payment_total'] > $remaining) {
-                abort(422, 'Nominal pembayaran melebihi sisa tagihan.');
+            $totalReturNominal = $purchase
+                ->returs()
+                ->with('items')
+                ->get()
+                ->flatMap(fn($r) => $r->items)
+                ->sum('subtotal');
+
+            $initialPaid     = $purchase->prePaid;
+            $creditPaidSoFar = $purchase
+                ->creditPurchase()
+                ->sum('payment_total');
+
+            $alreadyPaid = $initialPaid + $creditPaidSoFar;
+
+            $effectiveTotal = $purchase->total - $totalReturNominal;
+
+            $remainingBeforeThisPayment = $effectiveTotal - $alreadyPaid;
+
+            if ($payload['payment_total'] > $remainingBeforeThisPayment) {
+                abort(422, 'Nominal pembayaran melebihi sisa tagihan setelah retur.');
             }
 
             $purchase->creditPurchase()->create($payload);
 
-            // Update prepaid on the parent purchase
-            $purchase->increment('prePaid', $payload['payment_total']);
+            $newCreditPaidSoFar = $creditPaidSoFar + $payload['payment_total'];
+            $newAlreadyPaid     = $initialPaid + $newCreditPaidSoFar;
 
-            // Set status to "paid" if fully settled
-            if ($purchase->prePaid >= $purchase->total) {
+            if ($newAlreadyPaid >= $effectiveTotal) {
                 $purchase->status = 'paid';
                 $purchase->save();
             }

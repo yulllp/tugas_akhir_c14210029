@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes, HasPushSubscriptions;
 
     /**
      * The attributes that are mass assignable.
@@ -50,9 +51,9 @@ class User extends Authenticatable
         ];
     }
 
-    public function activityLogs()
+    public function scopeSearch($query, $value)
     {
-        return $this->hasMany(ActivityLog::class);
+        $query->where('name', 'ILIKE', "%{$value}%")->orWhere('username', 'ILIKE', "%{$value}%")->orWhere('id', 'ILIKE', "%{$value}%");
     }
 
 }

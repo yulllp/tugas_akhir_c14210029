@@ -35,7 +35,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle
             ->get();
         foreach ($sales as $item) {
             $rows->push([
-                Carbon::parse($item->transaction->transaction_at)->format('d-m-Y'),
+                Carbon::parse($item->transaction->transaction_at)->format('d-m-Y H:i'),
                 $item->product->name,
                 'Penjualan',
                 -$item->qty,
@@ -46,12 +46,12 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle
         // 2) Purchases within range
         $purchases = ProductPurchase::with(['purchase', 'product'])
             ->whereHas('purchase', function ($q) {
-                $q->whereBetween('buyDate', [$this->start, $this->end]);
+                $q->whereBetween('entryDate', [$this->start, $this->end]);
             })
             ->get();
         foreach ($purchases as $item) {
             $rows->push([
-                Carbon::parse($item->purchase->buyDate)->format('d-m-Y'),
+                Carbon::parse($item->purchase->entryDate)->format('d-m-Y H:i'),
                 $item->product->name,
                 'Pembelian',
                 $item->qty,
@@ -66,7 +66,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle
             })
             ->get();
         foreach ($returs as $item) {
-            $date = Carbon::parse($item->retur->return_date)->format('d-m-Y');
+            $date = Carbon::parse($item->retur->return_date)->format('d-m-Y H:i');
             $name = $item->product->name;
 
             if ($item->retur->return_type === 'customer') {
@@ -102,11 +102,11 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle
         // 4) Stock Opname within range
         $opnames = DetailStokOpname::with(['schedule', 'product'])
             ->whereHas('schedule', function ($q) {
-                $q->whereBetween('date', [$this->start, $this->end]);
+                $q->whereBetween('finish_at', [$this->start, $this->end]);
             })
             ->get();
         foreach ($opnames as $item) {
-            $date = Carbon::parse($item->schedule->date)->format('d-m-Y');
+            $date = Carbon::parse($item->schedule->finish_at)->format('d-m-Y H:i');
             $rows->push([
                 $date,
                 $item->product->name,
@@ -119,7 +119,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle
         // 5) Sort all rows by Date ascending
         $sorted = $rows->sortBy(function ($row) {
             // $row[0] is "Date" in d-m-Y; convert back to Carbon to sort properly
-            return Carbon::createFromFormat('d-m-Y', $row[0]);
+            return Carbon::createFromFormat('d-m-Y H:i', $row[0]);
         })->values();
 
         return $sorted;

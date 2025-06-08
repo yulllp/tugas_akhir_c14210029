@@ -33,28 +33,41 @@ class CreditPaymentController extends Controller
     public function store(Request $request, Transaction $transaction)
     {
         $payload = $request->validate([
-            'payDate'        => ['required', 'date'],
+            'payDate' => ['required', 'date_format:Y-m-d\TH:i'],
             'payment_total'  => ['required', 'numeric', 'min:1'],
             'description'    => ['nullable', 'string'],
         ]);
 
         DB::transaction(function () use ($transaction, $payload) {
-
-            // Lock parent row to avoid race conditions
             $transaction->lockForUpdate();
+            $totalReturNominal = $transaction
+                ->returs()
+                ->with('items')
+                ->get()
+                ->flatMap(fn($r) => $r->items)
+                ->sum('subtotal');
 
-            $remaining = $transaction->total - $transaction->prePaid;
-            if ($payload['payment_total'] > $remaining) {
-                abort(422, 'Nominal pembayaran melebihi sisa tagihan.');
+            $initialPaid = $transaction->prePaid;
+            $creditPaidSoFar = $transaction
+                ->creditPayment()
+                ->sum('payment_total');
+
+            $alreadyPaid = $initialPaid + $creditPaidSoFar;
+
+            $effectiveTotal = $transaction->total - $totalReturNominal;
+
+            $remainingBeforeThisPayment = $effectiveTotal - $alreadyPaid;
+
+            if ($payload['payment_total'] > $remainingBeforeThisPayment) {
+                abort(422, 'Nominal pembayaran melebihi sisa tagihan setelah retur.');
             }
 
             $transaction->creditPayment()->create($payload);
 
-            // Update prepaid on the parent transaction
-            $transaction->increment('prePaid', $payload['payment_total']);
+            $newCreditPaidSoFar = $creditPaidSoFar + $payload['payment_total'];
+            $newAlreadyPaid = $initialPaid + $newCreditPaidSoFar;
 
-            // Set status to "paid" if fully settled
-            if ($transaction->prePaid >= $transaction->total) {
+            if ($newAlreadyPaid >= $effectiveTotal) {
                 $transaction->status = 'paid';
                 $transaction->save();
             }

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->foreignId('transaction_id')->nullable()->constrained();
             $table->foreignId('purchase_id')->nullable()->constrained();
+            $table->decimal('refund_amount', 16, 0)->default(0);
             $table->foreignId('user_id')->constrained();
             $table->timestamps();
             $table->softDeletes();

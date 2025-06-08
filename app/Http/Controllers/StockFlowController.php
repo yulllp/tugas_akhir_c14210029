@@ -72,12 +72,11 @@ class StockFlowController extends Controller
             $sumTransBefore = DetailTransaction::where('product_id', $productId)
                 ->whereHas('transaction', fn($q) => $q->where('transaction_at', '<', $startDate))
                 ->sum('qty');
-            // qty di DetailTransaction adalah jumlah terjual, jadi stok terpengaruh = -$sumTransBefore
             $impactTransBefore = -1 * $sumTransBefore;
 
-            // 2.2. Pembelian (masuk → qty positif)
+            // 2.2. Pembelian (masuk → qty positif), pakai entryDate
             $sumPurchBefore = ProductPurchase::where('product_id', $productId)
-                ->whereHas('purchase', fn($q) => $q->where('buyDate', '<', $startDate))
+                ->whereHas('purchase', fn($q) => $q->where('entryDate', '<', $startDate))
                 ->sum('qty');
             $impactPurchBefore = $sumPurchBefore;
 
@@ -98,18 +97,16 @@ class StockFlowController extends Controller
                 }
             }, 0);
 
-            // 2.4. Stock Opname (difference bisa positif/negatif)
+            // 2.4. Stock Opname (difference bisa positif/negatif), pakai finish_at
             $sumOpnameBefore = DetailStokOpname::where('product_id', $productId)
-                ->whereHas('schedule', fn($q) => $q->where('date', '<', $startDate))
+                ->whereHas('schedule', fn($q) => $q->where('finish_at', '<', $startDate))
                 ->sum('difference');
             $impactOpnameBefore = $sumOpnameBefore;
 
-            // Total STOCK BEFORE:
             $stockBefore = $impactTransBefore
                 + $impactPurchBefore
                 + $impactReturBefore
                 + $impactOpnameBefore;
-
 
             // -------------------------------------------------
             // 3. Hitung STOCK CHANGE (selama $startDate – $endDate)
@@ -125,12 +122,12 @@ class StockFlowController extends Controller
                 ->sum('qty');
             $impactTransInRange = -1 * $sumTransInRange;
 
-            // 3.2. Pembelian dalam rentang (qty positif)
+            // 3.2. Pembelian dalam rentang (qty positif), pakai entryDate
             $sumPurchInRange = ProductPurchase::where('product_id', $productId)
                 ->whereHas(
                     'purchase',
                     fn($q) =>
-                    $q->whereBetween('buyDate', [$startDate, $endDate])
+                    $q->whereBetween('entryDate', [$startDate, $endDate])
                 )
                 ->sum('qty');
             $impactPurchInRange = $sumPurchInRange;
@@ -154,29 +151,31 @@ class StockFlowController extends Controller
                 }
             }, 0);
 
-            // 3.4. Stock Opname dalam rentang
+            // 3.4. Stock Opname dalam rentang (pakai finish_at)
             $sumOpnameInRange = DetailStokOpname::where('product_id', $productId)
                 ->whereHas(
                     'schedule',
                     fn($q) =>
-                    $q->whereBetween('date', [$startDate, $endDate])
+                    $q->whereBetween('finish_at', [$startDate, $endDate])
                 )
                 ->sum('difference');
             $impactOpnameInRange = $sumOpnameInRange;
 
-            // Total STOCK CHANGE:
             $stockChange = $impactTransInRange
                 + $impactPurchInRange
                 + $impactReturInRange
                 + $impactOpnameInRange;
 
-            // STOCK LAST (pada akhir endDate)
             $stockLast = $stockBefore + $stockChange;
-
 
             // -------------------------------------------------
             // 4. Ambil DETAIL MOVEMENTS (hanya aktivitas di rentang)
             // -------------------------------------------------
+            // Kita akan kumpulkan semua “movement” ke dalam satu koleksi, 
+            // sertakan kolom `dateTime` (Carbon) untuk sorting, 
+            // lalu format `date` menjadi `d-m-Y H:i`.
+
+            $allMovements = collect();
 
             // 4.1. Transaksi → keluar stok
             $transactions = DetailTransaction::with('transaction')
@@ -188,82 +187,99 @@ class StockFlowController extends Controller
                 )
                 ->get()
                 ->map(fn($item) => [
-                    'type'        => 'Penjualan',
-                    'qty'         => -$item->qty,
-                    'date'        => Carbon::parse($item->transaction->transaction_at)->toDateString(),
+                    'type'     => 'Penjualan',
+                    'qty'      => -$item->qty,
+                    // simpan Carbon instan agar mudah sortir
+                    'dateTime' => Carbon::parse($item->transaction->transaction_at),
+                    // untuk ditampilkan ke front‐end
+                    'date'     => Carbon::parse($item->transaction->transaction_at)->format('d-m-Y H:i'),
                     'description' => 'Penjualan #' . $item->transaction->id,
                 ]);
+            $allMovements = $allMovements->merge($transactions);
 
-            // 4.2. Pembelian → masuk stok
+            // 4.2. Pembelian → masuk stok, pakai entryDate
             $purchases = ProductPurchase::with('purchase')
                 ->where('product_id', $productId)
                 ->whereHas(
                     'purchase',
                     fn($q) =>
-                    $q->whereBetween('buyDate', [$startDate, $endDate])
+                    $q->whereBetween('entryDate', [$startDate, $endDate])
                 )
                 ->get()
                 ->map(fn($item) => [
-                    'type'        => 'Pembelian',
-                    'qty'         => $item->qty,
-                    'date'        => Carbon::parse($item->purchase->buyDate)->toDateString(),
+                    'type'     => 'Pembelian',
+                    'qty'      => $item->qty,
+                    'dateTime' => Carbon::parse($item->purchase->entryDate),
+                    'date'     => Carbon::parse($item->purchase->entryDate)->format('d-m-Y H:i'),
                     'description' => 'Pembelian #' . $item->purchase->id,
                 ]);
+            $allMovements = $allMovements->merge($purchases);
 
             // 4.3. Retur (customer + supplier)
             $returs = $returItemsInRange->map(function ($item) {
-                $returnDate = Carbon::parse($item->retur->return_date)->toDateString();
+                $dt = Carbon::parse($item->retur->return_date);
+                $formatted = $dt->format('d-m-Y H:i');
                 $isCustomer = $item->retur->return_type === 'customer';
+
                 if ($isCustomer) {
                     if ($item->condition === 'good') {
                         return [
-                            'type'        => 'Retur Customer (Baik)',
-                            'qty'         => $item->qty,
-                            'date'        => $returnDate,
+                            'type'     => 'Retur Customer (Baik)',
+                            'qty'      => $item->qty,
+                            'dateTime' => $dt,
+                            'date'     => $formatted,
                             'description' => 'Retur #' . $item->retur->id . ' (Baik)',
                         ];
                     }
                     // Retur customer rusak dianggap qty = 0
                     return [
-                        'type'        => 'Retur Customer (Rusak)',
-                        'qty'         => 0,
-                        'date'        => $returnDate,
+                        'type'     => 'Retur Customer (Rusak)',
+                        'qty'      => 0,
+                        'dateTime' => $dt,
+                        'date'     => $formatted,
                         'description' => 'Retur #' . $item->retur->id . ' (Rusak)',
                     ];
                 } else {
                     return [
-                        'type'        => 'Retur Supplier',
-                        'qty'         => -$item->qty,
-                        'date'        => $returnDate,
+                        'type'     => 'Retur Supplier',
+                        'qty'      => -$item->qty,
+                        'dateTime' => $dt,
+                        'date'     => $formatted,
                         'description' => 'Retur Supplier #' . $item->retur->id,
                     ];
                 }
             });
+            $allMovements = $allMovements->merge($returs);
 
-            // 4.4. Stock Opname → Eloquent
+            // 4.4. Stock Opname → pakai finish_at
             $opnames = DetailStokOpname::with('schedule')
                 ->where('product_id', $productId)
                 ->whereHas(
                     'schedule',
                     fn($q) =>
-                    $q->whereBetween('date', [$startDate, $endDate])
+                    $q->whereBetween('finish_at', [$startDate, $endDate])
                 )
                 ->get()
                 ->map(fn($item) => [
-                    'type'        => 'Stok Opname',
-                    'qty'         => $item->difference,
-                    'date'        => Carbon::parse($item->schedule->date)->toDateString(),
+                    'type'     => 'Stok Opname',
+                    'qty'      => $item->difference,
+                    'dateTime' => Carbon::parse($item->schedule->finish_at),
+                    'date'     => Carbon::parse($item->schedule->finish_at)->format('d-m-Y H:i'),
                     'description' => 'Opname #' . $item->schedule->id,
                 ]);
+            $allMovements = $allMovements->merge($opnames);
 
-            // Gabungkan semua aktivitas, urutkan per tanggal, dan reset indeks
-            $movements = collect()
-                ->merge($transactions)
-                ->merge($purchases)
-                ->merge($returs)
-                ->merge($opnames)
-                ->sortBy('date')
-                ->values();
+            // Urutkan berdasarkan dateTime, lalu reset index
+            $movements = $allMovements
+                ->sortBy('dateTime')
+                ->values()
+                // hapus kolom dateTime sebelum kirim ke front‐end
+                ->map(fn($row) => [
+                    'type'        => $row['type'],
+                    'qty'         => $row['qty'],
+                    'date'        => $row['date'],
+                    'description' => $row['description'],
+                ]);
 
             // -------------------------------------------------
             // 5. Kirim JSON RESPONSE

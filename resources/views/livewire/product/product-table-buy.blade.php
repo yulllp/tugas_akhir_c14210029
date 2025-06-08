@@ -48,7 +48,7 @@
             </table>
         </div>
 
-        <div class="mt-4">
+        <div class="py-4 px-3">
             {{ $buyRows->links() }}
         </div>
     </div>

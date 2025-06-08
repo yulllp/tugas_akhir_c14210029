@@ -58,7 +58,7 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
             // -- Compute Stock Start (all movements < $start) --
             $stockStart = 0;
 
-            // a) Sales before start date → turun stok (keluar)
+            // a) Sales before start finish_at → turun stok (keluar)
             $salesBefore = DetailTransaction::with('transaction')
                 ->where('product_id', $product->id)
                 ->whereHas('transaction', function ($q) {
@@ -69,11 +69,11 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
                 $stockStart -= $saleItem->qty;
             }
 
-            // b) Purchases before start date → naik stok (masuk)
+            // b) Purchases before start finish_at → naik stok (masuk)
             $purchasesBefore = ProductPurchase::with('purchase')
                 ->where('product_id', $product->id)
                 ->whereHas('purchase', function ($q) {
-                    $q->where('buyDate', '<', $this->start);
+                    $q->where('entryDate', '<', $this->start);
                 })
                 ->get();
             foreach ($purchasesBefore as $pp) {
@@ -103,7 +103,7 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
             $opnamesBefore = DetailStokOpname::with('schedule')
                 ->where('product_id', $product->id)
                 ->whereHas('schedule', function ($q) {
-                    $q->where('date', '<', $this->start);
+                    $q->where('finish_at', '<', $this->start);
                 })
                 ->get();
             foreach ($opnamesBefore as $op) {
@@ -129,7 +129,7 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
             $purchasesInRange = ProductPurchase::with('purchase')
                 ->where('product_id', $product->id)
                 ->whereHas('purchase', function ($q) {
-                    $q->whereBetween('buyDate', [$this->start, $this->end]);
+                    $q->whereBetween('entryDate', [$this->start, $this->end]);
                 })
                 ->get();
             foreach ($purchasesInRange as $pp) {
@@ -159,7 +159,7 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
             $opnamesInRange = DetailStokOpname::with('schedule')
                 ->where('product_id', $product->id)
                 ->whereHas('schedule', function ($q) {
-                    $q->whereBetween('date', [$this->start, $this->end]);
+                    $q->whereBetween('finish_at', [$this->start, $this->end]);
                 })
                 ->get();
             foreach ($opnamesInRange as $op) {

@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use App\Models\StockAdjustment;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth as FacadesAuth;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -65,6 +67,17 @@ class ProductController extends Controller
                 'product_id' => $product->id,
                 'sellPrice' => $validated['price'],
             ]);
+
+            activity('product')
+                ->performedOn($product)
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'id'        => $product->id,
+                    'nama'      => $product->name,
+                    'kode' => $product->productCode,
+                    'harga'     => $validated['price'],
+                ])
+                ->log("Produk #{$product->id} berhasil ditambahkan");
         });
 
         return redirect()->route('products.index')->with('success', 'Produk berhasil ditambahkan');
@@ -134,6 +147,26 @@ class ProductController extends Controller
                 'effectiveDate' => now(),
             ]);
         }
+
+        activity('produk')
+            ->performedOn($product)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id'  => $product->id,
+                'lama' => [
+                    'nama'     => $product->getOriginal('name'),
+                    'kode'     => $product->getOriginal('productCode'),
+                    'stok_min' => $product->getOriginal('minStok'),
+                    'harga'    => $latestPrice ? $latestPrice->sellPrice : null,
+                ],
+                'baru' => [
+                    'nama'     => $validated['name'],
+                    'kode'     => $validated['kode'],
+                    'stok_min' => $validated['minStok'],
+                    'harga'    => $validated['price'],
+                ],
+            ])
+            ->log("Produk #{$product->id} berhasil diperbarui");
 
         DB::commit();
 

@@ -16,6 +16,7 @@ class Retur extends Model
         'description',
         'transaction_id',
         'purchase_id',
+        'refund_amount',
         'user_id'
     ];
 

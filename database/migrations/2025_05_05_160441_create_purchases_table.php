@@ -11,11 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('activity_logs', function (Blueprint $table) {
+        Schema::create('purchases', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained();
-            $table->string('activity_type');
-            $table->text('description');
+            $table->dateTime('buyDate');
+            $table->foreignId('supplier_id')->constrained();
+            $table->string('faktur');
+            $table->decimal('total', 12, 0);
+            $table->decimal('prePaid', 12, 0);
+            $table->enum('status', ['paid', 'unpaid']);
+            $table->string('shipping');
+            $table->dateTime('entryDate')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -26,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('activity_logs');
+        Schema::dropIfExists('purchases');
     }
 };

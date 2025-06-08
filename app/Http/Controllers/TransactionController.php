@@ -9,11 +9,13 @@ use App\Models\ProductPrice;
 use App\Models\TempTransaction;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\LowStockNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
 class TransactionController extends Controller
@@ -230,10 +232,29 @@ class TransactionController extends Controller
 
                 Product::where('id', $item->product_id)
                     ->decrement('totalStok', $item->qty);
+
+                $product->refresh();
+
+                if ($product->totalStok < $product->minStok) {
+                    $recipients = User::where('role', 'owner')->get();
+                    Notification::send($recipients, new LowStockNotification($product));
+                }
             }
 
 
             TempTransaction::where('user_id', Auth::id())->delete();
+
+            activity('transaksi')
+                ->performedOn($transaction)
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'id'           => $transaction->id,
+                    'total'        => $transaction->total,
+                    'dibayar'      => $transaction->prePaid,
+                    'status'       => $transaction->status,
+                    'pelanggan_id' => $transaction->customer_id,
+                ])
+                ->log("Transaksi #{$transaction->id} berhasil dibuat");
 
             DB::commit();
 
@@ -295,8 +316,24 @@ class TransactionController extends Controller
             'selected_customer_id' => 'nullable|exists:customers,id',
         ]);
 
+        $lamaPelanggan = $transaction->customer_id;
+
         $transaction->customer_id = $validated['selected_customer_id'];
         $transaction->save();
+
+        activity('transaksi')
+            ->performedOn($transaction)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id' => $transaction->id,
+                'lama' => [
+                    'pelanggan_id' => $lamaPelanggan,
+                ],
+                'baru' => [
+                    'pelanggan_id' => $validated['selected_customer_id'],
+                ],
+            ])
+            ->log("Transaksi #{$transaction->id} berhasil diperbarui");
 
         return redirect()->route('transactions.show', $transaction->id)->with('success', 'Trasaksi berhasil diubah');;
     }

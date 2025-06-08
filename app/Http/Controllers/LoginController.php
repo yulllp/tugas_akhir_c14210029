@@ -39,14 +39,38 @@ class LoginController extends Controller
                 return back()->with('error', 'Akun anda tidak aktif. Segera hubungi atasan!');
             }
 
-            // ActivityLogger::log(
-            //     'login',
-            //     'Admin ' . Auth::user()->name . ' berhasil login.'
-            // );
+            activity('auth')
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ])
+                ->log('User berhasil login');
 
-            return redirect()->intended('/home');
+            return redirect()->intended(route('home'));
         }
 
         return back()->with('error', 'Login gagal! Silahkan periksa kembali "username" dan "password" anda!');
+    }
+
+    public function logout(Request $request)
+    {
+        if (Auth::check()) {
+            activity('auth')
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'ip'         => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ])
+                ->log('User berhasil logout');
+        }
+
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')
+            ->with('success', 'Anda telah berhasil logout.');
     }
 }

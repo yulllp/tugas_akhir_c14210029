@@ -66,9 +66,9 @@
                             <tr wire:key="{{ $payment->id }}" class="border-b dark:border-gray-700">
                                 <th class="px-4 py-3">{{ $payments->firstItem() + $index }}</th>
                                 <td class="px-4 py-3">{{ $payment->id }}</td>
-                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ $payment->payDate }}</td>
-                                <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-400">{{ $payment->payment_total }}</td>
-                                <td class="px-4 py-3">{{ $payment->description }}</td>
+                                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ \Carbon\Carbon::parse($payment->payDate)->format('d-m-Y H:i') }}</td>
+                                <td class="px-4 py-3 font-semibold text-yellow-600 dark:text-yellow-400">{{ number_format($payment->payment_total, 0, ',', '.') }}</td>
+                                <td class="px-4 py-3">{{ $payment->description ?? '-' }}</td>
                             </tr>
                             @empty
                             <tr>

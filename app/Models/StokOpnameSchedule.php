@@ -13,9 +13,9 @@ class StokOpnameSchedule extends Model
     protected $fillable = ['date', 'description', 'user_id', 'status', 'finish_at'];
 
     protected $casts = [
-        'date' => 'date',
+        'date'      => 'datetime',
+        'finish_at' => 'datetime',
     ];
-
     public function detailStokOpnames()
     {
         return $this->hasMany(DetailStokOpname::class, 'schedule_id');

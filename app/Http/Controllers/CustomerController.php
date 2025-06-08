@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class CustomerController extends Controller
 {
@@ -36,7 +37,18 @@ class CustomerController extends Controller
             'address' => 'nullable|string',
         ]);
 
-        Customer::create($validated);
+        $customer = Customer::create($validated);
+
+        activity('pelanggan')
+            ->performedOn($customer)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id'      => $customer->id,
+                'nama'    => $customer->name,
+                'telepon' => $customer->phone,
+                'alamat'  => $customer->address,
+            ])
+            ->log("Pelanggan #{$customer->id} berhasil ditambahkan");
 
         return redirect()->route('customers.index')->with('success', 'Pelanggan berhasil ditambahkan.');
     }
@@ -59,7 +71,27 @@ class CustomerController extends Controller
             'address' => 'nullable|string',
         ]);
 
+        $lama = [
+            'nama'    => $customer->getOriginal('name'),
+            'telepon' => $customer->getOriginal('phone'),
+            'alamat'  => $customer->getOriginal('address'),
+        ];
+
         $customer->update($validated);
+
+        activity('pelanggan')
+            ->performedOn($customer)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id'   => $customer->id,
+                'lama' => $lama,
+                'baru' => [
+                    'nama'    => $validated['name'],
+                    'telepon' => $validated['phone'],
+                    'alamat'  => $validated['address'],
+                ],
+            ])
+            ->log("Pelanggan #{$customer->id} berhasil diperbarui");
 
         return redirect()->route('customers.index')->with('success', 'Pelanggan berhasil diperbarui.');
     }

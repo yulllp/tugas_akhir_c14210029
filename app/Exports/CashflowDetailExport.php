@@ -5,54 +5,38 @@ namespace App\Exports;
 use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
-use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use Maatwebsite\Excel\Events\AfterSheet;
 
 class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithTitle, WithStyles, ShouldAutoSize, ShouldQueue
 {
-    /**
-     * @var \Carbon\Carbon|null
-     */
     protected $start;
-
-    /**
-     * @var \Carbon\Carbon|null
-     */
     protected $end;
-
-    /**
-     * @var array
-     */
     protected $activities;
-
-    /**
-     * @var array
-     */
     protected $rows = [];
 
     /**
-     * Order of sections in the sheet
+     * @param string|null $start      
+     * @param string|null $end        
+     * @param array       $activities 
      */
-    protected const SECTION_ORDER = [
-        'transactions',         // transaksi
-        'purchases',            // pembelian
-    ];
-
     public function __construct($start = null, $end = null, array $activities = [])
     {
-        $this->start = $start ? Carbon::parse($start, 'Asia/Jayapura')->startOfDay() : null;
-        $this->end   = $end ? Carbon::parse($end, 'Asia/Jayapura')->endOfDay() : null;
+        $this->start = $start
+            ? Carbon::parse($start, 'Asia/Jayapura')->startOfDay()
+            : null;
+        $this->end = $end
+            ? Carbon::parse($end, 'Asia/Jayapura')->endOfDay()
+            : null;
         $this->activities = empty($activities) ? ['all'] : $activities;
     }
-
 
     /**
      * Build the full sheet rows.
@@ -63,338 +47,532 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
             ? $this->start->format('d-m-Y') . ' s.d. ' . $this->end->format('d-m-Y')
             : 'Semua Periode';
 
-        // Title & period
         $this->rows[] = ["Laporan Arus Kas ($periodLabel)"];
-        $this->rows[] = []; // spacer
+        $this->rows[] = ['']; // one blank
 
-        // Build each section's data
-        $transactionRows = $this->buildTransactions();
-        $returCustomerRows = $this->buildCustomerReturns();
-        $purchaseRows = $this->buildPurchases();
-        $returSupplierRows = $this->buildSupplierReturns();
-
-        // Append each section
-        $this->rows[] = ['TRANSAKSI'];
-        foreach ($transactionRows as $row) {
-            $this->rows[] = $row;
+        $this->rows[] = ['TRANSAKSI (CASH-IN)'];
+        if ($this->activityEnabled('transactions')) {
+            $this->appendAllTransactions();
+        } else {
+            $this->rows[] = ['-- Tidak ada data transaksi --'];
         }
-        $this->rows[] = []; // spacer
+        // two blanks before next section
+        $this->rows[] = [''];
+        $this->rows[] = [''];
 
-        $this->rows[] = ['RETUR CUSTOMER'];
-        foreach ($returCustomerRows as $row) {
-            $this->rows[] = $row;
+        //
+        // SECTION 2: CREDIT PAYMENTS on TRANSACTIONS (CASH-IN)
+        //
+        $this->rows[] = ['PEMBAYARAN KREDIT TRANSAKSI (CASH-IN)'];
+        if ($this->activityEnabled('transactions')) {
+            $this->appendAllCreditPaymentsOnTransactions();
+        } else {
+            $this->rows[] = ['-- Tidak ada data pembayaran kredit transaksi --'];
         }
-        $this->rows[] = []; // spacer
+        // two blanks before next section
+        $this->rows[] = [''];
+        $this->rows[] = [''];
 
-        $this->rows[] = ['PEMBELIAN'];
-        foreach ($purchaseRows as $row) {
-            $this->rows[] = $row;
+        //
+        // SECTION 3: CUSTOMER RETURNS (CASH-OUT)
+        //
+        $this->rows[] = ['RETUR PELANGGAN (CASH-OUT)'];
+        if ($this->activityEnabled('transactions')) {
+            $this->appendAllCustomerReturns();
+        } else {
+            $this->rows[] = ['-- Tidak ada data retur pelanggan --'];
         }
-        $this->rows[] = []; // spacer
+        // two blanks before next section
+        $this->rows[] = [''];
+        $this->rows[] = [''];
 
-        $this->rows[] = ['RETUR SUPPLIER'];
-        foreach ($returSupplierRows as $row) {
-            $this->rows[] = $row;
+        //
+        // SECTION 4: PURCHASES (CASH-OUT)
+        //
+        $this->rows[] = ['PEMBELIAN (CASH-OUT)'];
+        if ($this->activityEnabled('purchases')) {
+            $this->appendAllPurchases();
+        } else {
+            $this->rows[] = ['-- Tidak ada data pembelian --'];
         }
-        $this->rows[] = []; // spacer
+        // two blanks before next section
+        $this->rows[] = [''];
+        $this->rows[] = [''];
 
-        // Summary
+        //
+        // SECTION 5: CREDIT PAYMENTS on PURCHASES (CASH-OUT)
+        //
+        $this->rows[] = ['PEMBAYARAN KREDIT PEMBELIAN (CASH-OUT)'];
+        if ($this->activityEnabled('purchases')) {
+            $this->appendAllCreditPaymentsOnPurchases();
+        } else {
+            $this->rows[] = ['-- Tidak ada data pembayaran kredit pembelian --'];
+        }
+        // two blanks before next section
+        $this->rows[] = [''];
+        $this->rows[] = [''];
+
+        //
+        // SECTION 6: SUPPLIER RETURNS (CASH-IN)
+        //
+        $this->rows[] = ['RETUR SUPPLIER (CASH-IN)'];
+        if ($this->activityEnabled('purchases')) {
+            $this->appendAllSupplierReturns();
+        } else {
+            $this->rows[] = ['-- Tidak ada data retur supplier --'];
+        }
+        // two blanks before summary
+        $this->rows[] = [''];
+        $this->rows[] = [''];
+
+        //
+        // SUMMARY
+        //
         $this->rows[] = ['RINGKASAN ARUS KAS'];
-        $summary = $this->calculateSummary($this->activities);
-        $this->rows[] = ['Total Kas Masuk', $summary['in'] ?? 0];
-        $this->rows[] = ['Total Kas Keluar', $summary['out'] ?? 0];
+        $summary = $this->calculateSummary();
+        $this->rows[] = ['Total Kas Masuk',   $summary['in']     ?? 0];
+        $this->rows[] = ['Total Kas Keluar',  $summary['out']    ?? 0];
         $this->rows[] = ['Total Laba / Rugi', $summary['profit'] ?? 0];
     }
 
-
-
-    protected function activityEnabled($key)
+    protected function activityEnabled(string $key): bool
     {
         return in_array('all', $this->activities) || in_array($key, $this->activities);
     }
 
-    protected function buildTransactions(): array
+    /**
+     * SECTION 1: List **all** transactions (each with its own item lines).
+     */
+    protected function appendAllTransactions(): void
     {
-        if (!$this->activityEnabled('transactions')) return [];
-
-        $rows = [['Detail Transaksi']];
-        $processedTransactionIds = [];
-
-        $transactions = DB::table('transactions as t')
+        // Fetch each transaction header and items in one go
+        $q = DB::table('transactions as t')
             ->join('detail_transactions as dt', 't.id', '=', 'dt.transaction_id')
             ->leftJoin('products as p', 'p.id', '=', 'dt.product_id')
             ->leftJoin('product_prices as pp', 'pp.id', '=', 'dt.product_price_id')
-            ->whereNull('t.deleted_at')
-            ->when($this->start && $this->end, fn($q) => $q->whereBetween('t.transaction_at', [$this->start, $this->end]))
-            ->select([
-                't.id as transaction_id',
-                't.transaction_at as date',
-                't.total',
-                DB::raw('t."prePaid" as prepaid'),
-                'p.name as product',
-                'dt.qty',
-                DB::raw('pp."sellPrice" as price'),
-                'dt.discount',
-                DB::raw('(dt.qty * pp."sellPrice") - (dt.qty * dt.discount) as subtotal'),
-            ])
+            ->whereNull('t.deleted_at');
+
+        if ($this->start && $this->end) {
+            $q->whereBetween('t.transaction_at', [$this->start, $this->end]);
+        }
+
+        $allRows = $q->select([
+            't.id as transaction_id',
+            't.transaction_at as date',
+            't.prePaid',
+            'p.name as product',
+            'dt.qty',
+            DB::raw('pp."sellPrice" as price'),
+            'dt.discount',
+            DB::raw('(dt.qty * pp."sellPrice") - (dt.qty * dt.discount) as item_subtotal'),
+        ])
             ->orderBy('t.transaction_at')
             ->get()
             ->groupBy('transaction_id');
 
-        foreach ($transactions as $transactionId => $items) {
+        if ($allRows->isEmpty()) {
+            $this->rows[] = ['-- Tidak ada data transaksi di periode ini --'];
+            return;
+        }
+
+        foreach ($allRows as $txId => $items) {
             $first = $items->first();
-            $processedTransactionIds[] = $transactionId;
+            $dateFormatted = Carbon::parse($first->date)->format('d-m-Y H:i');
 
-            $rows[] = ['Tanggal: ' . Carbon::parse($first->date)->format('d-m-Y') . ' | Kode: ' . $transactionId];
-            $rows[] = ['Produk', 'Qty', 'Harga', 'Diskon (Qty x Diskon)', 'Subtotal'];
+            // Header for this transaction
+            $this->rows[] = [
+                'Tanggal: ' . $dateFormatted
+                    . ' | Kode Transaksi: ' . $txId
+                    . ' | Prepaid: ' . $first->prePaid
+            ];
 
+            // Column titles for items
+            $this->rows[] = ['Produk', 'Qty', 'Harga Satuan', 'Diskon per Item', 'Subtotal Item'];
+
+            // List every item
             foreach ($items as $item) {
-                $rows[] = [
+                $this->rows[] = [
                     $item->product,
                     $item->qty,
+                    // raw integer price
                     $item->price,
-                    $item->qty * $item->discount,
-                    $item->subtotal,
+                    // raw integer discount
+                    $item->discount,
+                    // raw integer item_subtotal
+                    $item->item_subtotal,
                 ];
             }
 
-            $futureCredits = DB::table('credit_payments')
-                ->where('transaction_id', $transactionId)
-                ->where('payDate', '>', $this->end)
-                ->sum('payment_total');
-
-            $rows[] = ['', '', '', 'Prepaid', 'value' => $first->prepaid - $futureCredits];
-            $rows[] = ['', '', '', 'Total', $first->total];
-            $rows[] = [''];
+            // one blank before next transaction
+            $this->rows[] = [''];
         }
-
-        return $rows;
     }
 
-    protected function buildCustomerReturns(): array
+    /**
+     * SECTION 2: List **all** credit payments tied to transactions.
+     */
+    protected function appendAllCreditPaymentsOnTransactions(): void
     {
-        if (!$this->activityEnabled('transactions')) return [];
+        $q = DB::table('credit_payments as cp')
+            ->join('transactions as t', 't.id', '=', 'cp.transaction_id')
+            ->whereNull('cp.deleted_at');
 
-        $rows = [['Retur Penjualan']];
+        if ($this->start && $this->end) {
+            $q->whereBetween('cp.payDate', [$this->start, $this->end]);
+        }
 
-        // Combined all returns regardless of linkage
-        $returns = DB::table('retur_items as ri')
-            ->join('returs as r', 'r.id', '=', 'ri.retur_id')
-            ->leftJoin('products as p', 'p.id', '=', 'ri.product_id')
-            ->leftJoin('product_prices as pp', 'pp.id', '=', 'ri.product_price_id')
+        $credits = $q->select([
+            'cp.id as credit_id',
+            'cp.transaction_id',
+            'cp.payDate',
+            'cp.payment_total',
+        ])
+            ->orderBy('cp.payDate')
+            ->get();
+
+        if ($credits->isEmpty()) {
+            $this->rows[] = ['-- Tidak ada pembayaran kredit transaksi di periode ini --'];
+            return;
+        }
+
+        // Column titles
+        $this->rows[] = ['ID Pembayaran', 'Kode Transaksi', 'Tanggal Pembayaran', 'Jumlah'];
+
+        foreach ($credits as $cp) {
+            $this->rows[] = [
+                $cp->credit_id,
+                $cp->transaction_id,
+                Carbon::parse($cp->payDate)->format('d-m-Y H:i'),
+                // raw integer payment_total
+                $cp->payment_total,
+            ];
+        }
+
+        // one blank after entire section
+        $this->rows[] = [''];
+    }
+
+    /**
+     * SECTION 3: List **all** customer returns (return_type = 'customer').
+     */
+    protected function appendAllCustomerReturns(): void
+    {
+        $q = DB::table('returs as r')
             ->where('r.return_type', 'customer')
-            ->whereNull('r.deleted_at')
-            ->whereBetween('r.return_date', [$this->start, $this->end])
-            ->select([
-                'r.transaction_id',
-                'r.return_date',
-                'p.name as product',
-                'ri.qty',
-                DB::raw('pp."sellPrice" as price'),
-                'ri.disc',
-                'ri.condition',
-                DB::raw('ri.subtotal as subtotal')
-            ])
-            ->get()
-            ->groupBy('transaction_id');
+            ->whereNull('r.deleted_at');
 
-        foreach ($returns as $transactionId => $items) {
-            $rows[] = ['Retur dari Transaksi | Kode: ' . ($transactionId ?? '-')];
+        if ($this->start && $this->end) {
+            $q->whereBetween('r.return_date', [$this->start, $this->end]);
+        }
 
-            $grouped = $items->groupBy(fn($item) => Carbon::parse($item->return_date)->format('d-m-Y'));
+        $returns = $q->select([
+            'r.id as retur_id',
+            'r.transaction_id',
+            'r.return_date',
+            'r.refund_amount',
+        ])
+            ->orderBy('r.return_date')
+            ->get();
 
-            foreach ($grouped as $date => $returItems) {
-                $rows[] = ['Tanggal Retur: ' . $date];
-                $rows[] = ['Produk', 'Qty', 'Harga', 'Diskon (Qty x Diskon)', 'Subtotal', 'Jenis Retur'];
+        if ($returns->isEmpty()) {
+            $this->rows[] = ['-- Tidak ada data retur pelanggan di periode ini --'];
+            return;
+        }
 
-                $returTotal = 0;
+        foreach ($returns as $r) {
+            $this->rows[] = [
+                'ID Retur: ' . $r->retur_id
+                    . ' | Kode Transaksi: ' . ($r->transaction_id ?? '-')
+                    . ' | Tanggal: ' . Carbon::parse($r->return_date)->format('d-m-Y H:i')
+                    . ' | Refund Amount: ' . $r->refund_amount
+            ];
 
-                foreach ($returItems as $r) {
-                    $rows[] = [
-                        $r->product,
-                        $r->qty,
-                        $r->price,
-                        $r->qty * $r->disc,
-                        $r->subtotal,
-                        $r->condition,
-                    ];
-                    $returTotal += $r->subtotal;
-                }
+            // (optional) show item‐level details for that return
+            $items = DB::table('retur_items as ri')
+                ->join('products as p', 'p.id', '=', 'ri.product_id')
+                ->leftJoin('product_prices as pp', 'pp.id', '=', 'ri.product_price_id')
+                ->where('ri.retur_id', $r->retur_id)
+                ->select([
+                    'p.name as product',
+                    'ri.qty',
+                    DB::raw('COALESCE(pp."sellPrice", ri.buy_price) as price'),
+                    'ri.disc as discount',
+                    'ri.condition',
+                    DB::raw('ri.subtotal as item_subtotal'),
+                ])
+                ->get();
 
-                $rows[] = ['', '', '', '', 'value' => 'Total Retur: ' . number_format($returTotal, 0, ',', '.')];
+            $this->rows[] = ['Produk', 'Qty', 'Harga Satuan', 'Diskon per item', 'Kondisi', 'Subtotal Item'];
+            foreach ($items as $ri) {
+                $this->rows[] = [
+                    $ri->product,
+                    $ri->qty,
+                    $ri->price,
+                    $ri->discount,
+                    ucfirst($ri->condition),
+                    $ri->item_subtotal,
+                ];
             }
 
-            $rows[] = [''];
+            // one blank after each customer return
+            $this->rows[] = [''];
         }
-
-        return $rows;
     }
 
-    protected function buildPurchases(): array
+    /**
+     * SECTION 4: List **all** purchases (cash‐out).
+     */
+    protected function appendAllPurchases(): void
     {
-        if (!$this->activityEnabled('purchases')) return [];
-
-        $rows = [['Detail Pembelian']];
-        $processedPurchaseIds = [];
-
-        $purchases = DB::table('purchases as pu')
+        $q = DB::table('purchases as pu')
             ->join('product_purchases as pp', 'pu.id', '=', 'pp.purchase_id')
             ->leftJoin('products as p', 'p.id', '=', 'pp.product_id')
-            ->whereNull('pu.deleted_at')
-            ->when($this->start && $this->end, fn($q) => $q->whereBetween('pu.buyDate', [$this->start, $this->end]))
-            ->select([
-                'pu.id as purchase_id',
-                'pu.buyDate as date',
-                'pu.total',
-                DB::raw('pu."prePaid" as prepaid'),
-                'p.name as product',
-                'pp.qty',
-                'pp.buyPrice',
-                DB::raw('pp.subtotal as subtotal'),
-            ])
+            ->whereNull('pu.deleted_at');
+
+        if ($this->start && $this->end) {
+            $q->whereBetween('pu.buyDate', [$this->start, $this->end]);
+        }
+
+        $allRows = $q->select([
+            'pu.id as purchase_id',
+            'pu.buyDate as date',
+            'pu.prePaid',
+            'p.name as product',
+            'pp.qty',
+            'pp.buyPrice as price',
+            'pp.subtotal as item_subtotal',
+        ])
             ->orderBy('pu.buyDate')
             ->get()
             ->groupBy('purchase_id');
 
-        foreach ($purchases as $purchaseId => $items) {
-            $first = $items->first();
-            $processedPurchaseIds[] = $purchaseId;
+        if ($allRows->isEmpty()) {
+            $this->rows[] = ['-- Tidak ada data pembelian di periode ini --'];
+            return;
+        }
 
-            $rows[] = ['Tanggal: ' . Carbon::parse($first->date)->format('d-m-Y') . ' | Kode: ' . $purchaseId];
-            $rows[] = ['Produk', 'Qty', 'Harga Beli', 'Subtotal'];
+        foreach ($allRows as $purchaseId => $items) {
+            $first = $items->first();
+            $dateFormatted = Carbon::parse($first->date)->format('d-m-Y H:i');
+
+            $this->rows[] = [
+                'Tanggal: ' . $dateFormatted
+                    . ' | Kode Pembelian: ' . $purchaseId
+                    . ' | Prepaid: ' . $first->prePaid
+            ];
+
+            // Column titles
+            $this->rows[] = ['Produk', 'Qty', 'Harga Beli', 'Subtotal Item'];
 
             foreach ($items as $item) {
-                $rows[] = [
+                $this->rows[] = [
                     $item->product,
                     $item->qty,
-                    $item->buyPrice,
-                    $item->subtotal,
+                    $item->price,
+                    $item->item_subtotal,
                 ];
             }
 
-            $futureCredits = DB::table('credit_purchases')
-                ->where('purchase_id', $purchaseId)
-                ->where('payDate', '>', $this->end)
-                ->sum('payment_total');
-
-            $rows[] = ['', '', 'Prepaid', $first->prepaid - $futureCredits];
-            $rows[] = ['', '', 'Total', $first->total];
-            $rows[] = [''];
+            // one blank after each purchase
+            $this->rows[] = [''];
         }
-
-        return $rows;
     }
-
-    protected function buildSupplierReturns(): array
-    {
-        if (!$this->activityEnabled('purchases')) return [];
-
-        $rows = [['Retur Pembelian']];
-
-        $supplierReturns = DB::table('retur_items as ri')
-            ->join('returs as r', 'r.id', '=', 'ri.retur_id')
-            ->leftJoin('products as p', 'p.id', '=', 'ri.product_id')
-            ->where('r.return_type', 'supplier')
-            ->whereNull('r.deleted_at')
-            ->whereBetween('r.return_date', [$this->start, $this->end])
-            ->select([
-                'r.purchase_id',
-                'r.return_date',
-                'p.name as product',
-                'ri.qty',
-                'ri.buy_price as price',
-                DB::raw('ri.subtotal as subtotal')
-            ])
-            ->get()
-            ->groupBy('purchase_id');
-
-        foreach ($supplierReturns as $purchaseId => $items) {
-            $rows[] = ['Kode Pembelian: ' . $purchaseId];
-
-            $grouped = $items->groupBy(fn($item) => Carbon::parse($item->return_date)->format('d-m-Y'));
-
-            foreach ($grouped as $date => $returItems) {
-                $rows[] = ['Tanggal Retur: ' . $date];
-                $rows[] = ['Produk', 'Qty', 'Harga', 'Subtotal'];
-
-                $returTotal = 0;
-
-                foreach ($returItems as $r) {
-                    $rows[] = [
-                        $r->product,
-                        $r->qty,
-                        $r->price,
-                        $r->subtotal,
-                    ];
-                    $returTotal += $r->subtotal;
-                }
-
-                $rows[] = ['', '', '', 'value' => 'Total Retur: ' . number_format($returTotal, 0, ',', '.')];
-            }
-
-            $rows[] = [''];
-        }
-
-        return $rows;
-    }
-
 
     /**
-     * Calculate cash summary
+     * SECTION 5: List **all** credit payments on purchases.
      */
-    protected function calculateSummary(array $activities): array
+    protected function appendAllCreditPaymentsOnPurchases(): void
+    {
+        $q = DB::table('credit_purchases as cp')
+            ->join('purchases as pu', 'pu.id', '=', 'cp.purchase_id')
+            ->whereNull('cp.deleted_at');
+
+        if ($this->start && $this->end) {
+            $q->whereBetween('cp.payDate', [$this->start, $this->end]);
+        }
+
+        $credits = $q->select([
+            'cp.id as credit_id',
+            'cp.purchase_id',
+            'cp.payDate',
+            'cp.payment_total',
+        ])
+            ->orderBy('cp.payDate')
+            ->get();
+
+        if ($credits->isEmpty()) {
+            $this->rows[] = ['-- Tidak ada data pembayaran kredit pembelian di periode ini --'];
+            return;
+        }
+
+        $this->rows[] = ['ID Pembayaran', 'Kode Pembelian', 'Tanggal Pembayaran', 'Jumlah'];
+        foreach ($credits as $cp) {
+            $this->rows[] = [
+                $cp->credit_id,
+                $cp->purchase_id,
+                Carbon::parse($cp->payDate)->format('d-m-Y H:i'),
+                $cp->payment_total,
+            ];
+        }
+
+        // one blank after entire section
+        $this->rows[] = [''];
+    }
+
+    /**
+     * SECTION 6: List **all** supplier returns.
+     */
+    protected function appendAllSupplierReturns(): void
+    {
+        $q = DB::table('returs as r')
+            ->where('r.return_type', 'supplier')
+            ->whereNull('r.deleted_at');
+
+        if ($this->start && $this->end) {
+            $q->whereBetween('r.return_date', [$this->start, $this->end]);
+        }
+
+        $returns = $q->select([
+            'r.id as retur_id',
+            'r.purchase_id',
+            'r.return_date',
+            'r.refund_amount',
+        ])
+            ->orderBy('r.return_date')
+            ->get();
+
+        if ($returns->isEmpty()) {
+            $this->rows[] = ['-- Tidak ada data retur supplier di periode ini --'];
+            return;
+        }
+
+        foreach ($returns as $r) {
+            $this->rows[] = [
+                'ID Retur: ' . $r->retur_id
+                    . ' | Kode Pembelian: ' . ($r->purchase_id ?? '-')
+                    . ' | Tanggal: ' . Carbon::parse($r->return_date)->format('d-m-Y H:i')
+                    . ' | Refund Amount: ' . $r->refund_amount
+            ];
+
+            // Optional: show item‐level details
+            $items = DB::table('retur_items as ri')
+                ->join('products as p', 'p.id', '=', 'ri.product_id')
+                ->where('ri.retur_id', $r->retur_id)
+                ->select([
+                    'p.name as product',
+                    'ri.qty',
+                    'ri.buy_price as price',
+                    'ri.subtotal as item_subtotal',
+                ])
+                ->get();
+
+            $this->rows[] = ['Produk', 'Qty', 'Harga Beli', 'Subtotal Item'];
+            foreach ($items as $ri) {
+                $this->rows[] = [
+                    $ri->product,
+                    $ri->qty,
+                    $ri->price,
+                    $ri->item_subtotal,
+                ];
+            }
+
+            // one blank after each supplier return
+            $this->rows[] = [''];
+        }
+    }
+
+    /**
+     * Summarize cash‐in / cash‐out exactly as in the controller logic.
+     */
+    protected function calculateSummary(): array
     {
         $cashIn = 0;
         $cashOut = 0;
 
-        if (in_array('transactions', $activities)) {
-            // Prepaid part of transactions minus future credit payments
-            $transactions = DB::table('transactions as t')
-                ->leftJoin('credit_payments as cp', 'cp.transaction_id', '=', 't.id')
-                ->whereNull('t.deleted_at');
-            if ($this->start && $this->end) {
-                $transactions->whereBetween('t.transaction_at', [$this->start, $this->end]);
-            }
-            $cashIn += $transactions->sum(DB::raw('t."prePaid" - COALESCE(cp.payment_total, 0)'));
-
-            // Credit payments made within date range
-            $creditPayments = DB::table('credit_payments')
-                ->whereNull('deleted_at')
-                ->when($this->start && $this->end, fn($q) => $q->whereBetween(DB::raw('"payDate"'), [$this->start, $this->end]));
-            $cashIn += $creditPayments->sum('payment_total');
-
-            // Customer return (cash paid back to customers)
-            $customerReturns = DB::table('retur_items as ri')
-                ->join('returs as r', 'r.id', '=', 'ri.retur_id')
-                ->where('r.return_type', 'customer')
-                ->whereNull('r.deleted_at')
-                ->when($this->start && $this->end, fn($q) => $q->whereBetween('r.return_date', [$this->start, $this->end]));
-            $cashOut += $customerReturns->sum(DB::raw('ri.subtotal'));
+        // TRANSAKSI (prePaid cash‐in)
+        if ($this->activityEnabled('transactions')) {
+            $sumPrepaid = DB::table('transactions as t')
+                ->whereNull('t.deleted_at')
+                ->when(
+                    $this->start && $this->end,
+                    fn($q) => $q->whereBetween('t.transaction_at', [$this->start, $this->end])
+                )
+                ->select(DB::raw('SUM(t."prePaid") as total_prepaid'))
+                ->first()
+                ->total_prepaid ?? 0;
+            $cashIn += $sumPrepaid;
         }
 
-        if (in_array('purchases', $activities)) {
-            // Prepaid part of purchases minus future credit payments
-            $purchases = DB::table('purchases as pu')
-                ->leftJoin('credit_purchases as cp', 'cp.purchase_id', '=', 'pu.id')
-                ->whereNull('pu.deleted_at');
-            if ($this->start && $this->end) {
-                $purchases->whereBetween('pu.buyDate', [$this->start, $this->end]);
-            }
-            $cashOut += $purchases->sum(DB::raw('pu."prePaid" - COALESCE(cp.payment_total, 0)'));
+        // Pembayaran kredit transaksi (cash‐in)
+        if ($this->activityEnabled('transactions')) {
+            $sumCreditTx = DB::table('credit_payments as cp')
+                ->whereNull('cp.deleted_at')
+                ->when(
+                    $this->start && $this->end,
+                    fn($q) => $q->whereBetween('cp.payDate', [$this->start, $this->end])
+                )
+                ->select(DB::raw('SUM(cp.payment_total) as total_credit_tx'))
+                ->first()
+                ->total_credit_tx ?? 0;
+            $cashIn += $sumCreditTx;
+        }
 
-            // Credit purchases paid within date range
-            $creditPurchases = DB::table('credit_purchases')
-                ->whereNull('deleted_at')
-                ->when($this->start && $this->end, fn($q) => $q->whereBetween(DB::raw('"payDate"'), [$this->start, $this->end]));
-            $cashOut += $creditPurchases->sum('payment_total');
+        // Retur pelanggan (cash‐out)
+        if ($this->activityEnabled('transactions')) {
+            $sumCustRet = DB::table('returs as r')
+                ->where('r.return_type', 'customer')
+                ->whereNull('r.deleted_at')
+                ->when(
+                    $this->start && $this->end,
+                    fn($q) => $q->whereBetween('r.return_date', [$this->start, $this->end])
+                )
+                ->select(DB::raw('SUM(r.refund_amount) as total_refund_customer'))
+                ->first()
+                ->total_refund_customer ?? 0;
+            $cashOut += $sumCustRet;
+        }
 
-            // Supplier return (money refunded from supplier)
-            $supplierReturns = DB::table('retur_items as ri')
-                ->join('returs as r', 'r.id', '=', 'ri.retur_id')
+        // PEMBELIAN (prePaid cash‐out)
+        if ($this->activityEnabled('purchases')) {
+            $sumPrepaidPu = DB::table('purchases as pu')
+                ->whereNull('pu.deleted_at')
+                ->when(
+                    $this->start && $this->end,
+                    fn($q) => $q->whereBetween('pu.buyDate', [$this->start, $this->end])
+                )
+                ->select(DB::raw('SUM(pu."prePaid") as total_prepaid_pu'))
+                ->first()
+                ->total_prepaid_pu ?? 0;
+            $cashOut += $sumPrepaidPu;
+        }
+
+        // Pembayaran kredit pembelian (cash‐out)
+        if ($this->activityEnabled('purchases')) {
+            $sumCreditPu = DB::table('credit_purchases as cp')
+                ->whereNull('cp.deleted_at')
+                ->when(
+                    $this->start && $this->end,
+                    fn($q) => $q->whereBetween('cp.payDate', [$this->start, $this->end])
+                )
+                ->select(DB::raw('SUM(cp.payment_total) as total_credit_purchase'))
+                ->first()
+                ->total_credit_purchase ?? 0;
+            $cashOut += $sumCreditPu;
+        }
+
+        // Retur supplier (cash‐in)
+        if ($this->activityEnabled('purchases')) {
+            $sumSuppRet = DB::table('returs as r')
                 ->where('r.return_type', 'supplier')
                 ->whereNull('r.deleted_at')
-                ->when($this->start && $this->end, fn($q) => $q->whereBetween('r.return_date', [$this->start, $this->end]));
-            $cashIn += $supplierReturns->sum(DB::raw('ri.subtotal'));
+                ->when(
+                    $this->start && $this->end,
+                    fn($q) => $q->whereBetween('r.return_date', [$this->start, $this->end])
+                )
+                ->select(DB::raw('SUM(r.refund_amount) as total_refund_supplier'))
+                ->first()
+                ->total_refund_supplier ?? 0;
+            $cashIn += $sumSuppRet;
         }
 
         return [
@@ -404,9 +582,9 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         ];
     }
 
-    /* ------------------------------------ */
-    /*  Maatwebsite Concerns Implementations */
-    /* ------------------------------------ */
+    /* ------------------------------------------------------------
+     * Maatwebsite\Excel\Concerns implementations
+     * ------------------------------------------------------------ */
 
     public function array(): array
     {
@@ -418,54 +596,37 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
 
     public function headings(): array
     {
-        // The headings concern will only set the first heading row.
+        // We build all headings inside buildRows(), so just return empty here.
         return [];
     }
 
     public function registerEvents(): array
     {
         return [
-            // AfterSheet::class => function (AfterSheet $event) {
-            //     $sheet = $event->sheet;
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $highestRow = $sheet->getHighestRow();
 
-            //     // Title row merge & style
-            //     $sheet->mergeCells('A1:J1');
-            //     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-            //     $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
-
-            //     // Auto-filter for every header row (bold font)
-            //     foreach ($this->rows as $index => $row) {
-            //         // Skip if not an array or doesn't have index 0
-            //         if (!is_array($row) || !isset($row[0])) {
-            //             continue;
-            //         }
-            //         // Check for heading rows
-            //         if (
-            //             strpos($row[0], 'Detail') === 0 ||
-            //             strpos($row[0], 'Retur') === 0 ||
-            //             strpos($row[0], 'Pembayaran') === 0 ||
-            //             strpos($row[0], 'Pelunasan') === 0
-            //         ) {
-            //             $rowNumber = $index + 1; // Excel rows are 1-based
-            //             $sheet->getStyle("A{$rowNumber}:J{$rowNumber}")->getFont()->setBold(true);
-            //         }
-            //     }
-            // },
+                // Apply "#,##0" formatting to numeric columns (C, D, E, F, G)
+                foreach (['C', 'D', 'E', 'F', 'G'] as $col) {
+                    $sheet
+                        ->getStyle("{$col}1:{$col}{$highestRow}")
+                        ->getNumberFormat()
+                        ->setFormatCode(NumberFormat::FORMAT_NUMBER);
+                }
+            },
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
         return [
-            // // Bold the summary labels
-            // 'A' . (count($this->rows) - 2) => ['font' => ['bold' => true]],
-            // 'A' . (count($this->rows) - 1) => ['font' => ['bold' => true]],
-            // 'A' . (count($this->rows))     => ['font' => ['bold' => true]],
+            // e.g. 'A1' => ['font' => ['bold' => true, 'size' => 14]],
         ];
     }
 
     public function title(): string
     {
-        return 'Arus Kas';
+        return 'Arus Kas Detail';
     }
 }

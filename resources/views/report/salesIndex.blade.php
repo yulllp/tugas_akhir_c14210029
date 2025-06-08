@@ -60,7 +60,7 @@
     <div
       id="summary"
       class="bg-white dark:bg-gray-900 shadow-sm border border-gray-200 dark:border-gray-700 rounded-xl p-6 mb-8">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 text-center">
         <div class="text-green-600 dark:text-green-400">
           <p class="text-sm font-medium">Kas Masuk</p>
           <p id="total-in" class="text-lg font-bold">Rp 0</p>
@@ -337,7 +337,7 @@
 
       document.querySelector('#total-in').textContent = formatCurrency(totalIn);
       document.querySelector('#total-out').textContent = formatCurrency(totalOut);
-      document.querySelector('#net-income').textContent = formatCurrency(totalIn - totalOut);
+      document.querySelector('#net-income').textContent = formatCurrency(totalIn + totalOut);
 
       if (window.cashflowChart) {
         window.cashflowChart.destroy();

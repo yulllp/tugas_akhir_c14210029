@@ -44,7 +44,7 @@ class Product extends Model
 
     public function productForcasts()
     {
-        return $this->hasMany(ProductForecast::class);
+        return $this->hasOne(ProductForecast::class);
     }
 
     public function scopeSearch($query, $value)

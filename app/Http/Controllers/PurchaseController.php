@@ -157,7 +157,9 @@ class PurchaseController extends Controller
         DB::beginTransaction();
 
         try {
-            $entryDate = $final['shipping'] === 'arrive' ? now()->toDateString() : null;
+            $entryDate = $final['shipping'] === 'arrive'
+                ? now()
+                : null;
 
             $purchase = Purchase::create([
                 'user_id'     => Auth::id(),
@@ -224,6 +226,21 @@ class PurchaseController extends Controller
 
             DB::commit();
 
+            activity('pembelian')
+                ->performedOn($purchase)
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'id'            => $purchase->id,
+                    'faktur'        => $purchase->faktur,
+                    'total'         => $purchase->total,
+                    'dibayar'       => $purchase->prePaid,
+                    'supplier_id'   => $purchase->supplier_id,
+                    'status'        => $purchase->status,
+                    'shipping'      => $purchase->shipping,
+                    'tanggal_entry' => optional($purchase->entryDate)->format('d-m-Y H:i'),
+                ])
+                ->log("Pembelian #{$purchase->id} berhasil dibuat");
+
             return redirect()->route('purchases.create')->with('success', 'Pembelian berhasil disimpan.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -271,7 +288,6 @@ class PurchaseController extends Controller
 
 
         $validated = Validator::make($request->all(), [
-            'buyDate'     => 'required|date_format:Y-m-d',
             'supplier_id' => 'required|exists:suppliers,id',
             'shipping'    => 'required|in:arrive,pending',
         ])->validate();
@@ -287,15 +303,13 @@ class PurchaseController extends Controller
         ) {
 
             $purchase->update([
-                'buyDate'   => Carbon::createFromFormat('Y-m-d', $validated['buyDate'])
-                    ->toDateString(),
                 'supplier_id' => $validated['supplier_id'],
                 // only allow “shipping” to be set once to arrive
                 'shipping'  => $purchase->shipping === 'arrive'
                     ? 'arrive'                      // already arrived → lock
                     : $validated['shipping'],
                 'entryDate' => $shouldUpdateStock
-                    ? now()->toDateString()
+                    ? now()
                     : $purchase->entryDate,
             ]);
 
@@ -305,6 +319,24 @@ class PurchaseController extends Controller
                 }
             }
         });
+
+        activity('pembelian')
+            ->performedOn($purchase)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id'      => $purchase->id,
+                'lama'    => [
+                    'supplier_id' => $purchase->getOriginal('supplier_id'),
+                    'shipping'    => $purchase->getOriginal('shipping'),
+                ],
+                'baru'    => [
+                    'supplier_id' => $validated['supplier_id'],
+                    'shipping'    => $purchase->shipping,
+                ],
+                'entryDate_lama' => optional($purchase->getOriginal('entryDate'))->format('d-m-Y H:i'),
+                'entryDate_baru' => optional($purchase->entryDate)->format('d-m-Y H:i'),
+            ])
+            ->log("Pembelian #{$purchase->id} berhasil diperbarui");
 
         return redirect()
             ->route('purchases.show', $purchase->id)

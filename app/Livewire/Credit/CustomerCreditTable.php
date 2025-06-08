@@ -7,89 +7,127 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Url;
 use App\Models\Transaction;
 use App\Models\Customer;
-use Illuminate\Support\Facades\DB;
 
 class CustomerCreditTable extends Component
 {
     use WithPagination;
 
-    // URL‐driven params (so you can share links with ?search=…&sortField=…)
-    #[Url(history: true)] public $search = '';
-    #[Url(history: true)] public $sortField = 'transaction_at';
-    #[Url(history: true)] public $sortDirection = 'desc';
-    #[Url(history: true)] public $perPage = 10;
+    // URL‐driven params (bisa di‐share via query string)
+    #[Url(history: true)] public $search         = '';
+    #[Url(history: true)] public $sortField      = 'transaction_at';
+    #[Url(history: true)] public $sortDirection  = 'desc';
+    #[Url(history: true)] public $perPage        = 10;
 
-    // Filter: selected customer_id (null→all)
-    public $customer_id = null;
+    #[Url(history: true)]
+    public $sortBy = 'transaction_at';
 
-    // Whenever the search or customer_id changes, reset to page 1
+    // Jadikan customer_id juga URL‐driven, langsung menerapkan filter ketika berubah
+    #[Url(history: true)] public $customer_id    = null;
+
     public function updatedSearch()
     {
         $this->resetPage();
     }
+
+    // Ketika user memilih dropdown, kita langsung reset page, dan query akan diterapkan ulang (render akan dipanggil)
     public function updatedCustomerId()
     {
         $this->resetPage();
     }
 
-    // Toggle sorting on a column
     public function setSortBy($field)
     {
         if ($this->sortField === $field) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
             return;
         }
-        $this->sortField = $field;
+        $this->sortField     = $field;
         $this->sortDirection = 'asc';
-    }
-
-    // Computed property: “Total outstanding credit” for the selected customer
-    public function getTotalCreditProperty()
-    {
-        if (!$this->customer_id) {
-            return 0;
-        }
-
-        return Transaction::where('customer_id', $this->customer_id)
-            ->where('status', 'unpaid')
-            ->select(DB::raw('SUM(total - prePaid) as outstanding_sum'))
-            ->value('outstanding_sum') ?? 0;
     }
 
     public function render()
     {
-        // Fetch all customers (to build the dropdown)
+        // 1) Ambil semua customer untuk dropdown
         $customers = Customer::orderBy('name')->get(['id', 'name']);
 
-        // Base query: only unpaid transactions
-        $query = Transaction::with('customer')
+        // 2) Buat query dasar: transaksi 'unpaid'
+        $baseQuery = Transaction::with(['customer', 'returs.items', 'creditPayment'])
             ->where('status', 'unpaid');
 
-        // If a customer is selected, filter by that ID
+        // 3) Jika customer_id tidak null, tambahkan where langsung
         if ($this->customer_id) {
-            $query->where('customer_id', $this->customer_id);
+            $baseQuery->where('customer_id', $this->customer_id);
         }
 
-        // Basic “search” by transaction ID or by customer name
+        // 4) Tambahkan search (jika ada)
         if ($this->search) {
             $searchTerm = '%' . $this->search . '%';
-            $query->where(function($q) use ($searchTerm) {
+            $baseQuery->where(function ($q) use ($searchTerm) {
                 $q->where('id', 'like', $searchTerm)
-                  ->orWhereHas('customer', function($q2) use ($searchTerm) {
+                  ->orWhereHas('customer', function ($q2) use ($searchTerm) {
                       $q2->where('name', 'like', $searchTerm);
                   });
             });
         }
 
-        // Apply sorting
-        $query->orderBy($this->sortField, $this->sortDirection);
+        // 5) Hitung summary tanpa pagination
+        $allForSummary = (clone $baseQuery)->get();
 
-        // Paginate
-        $transactions = $query->paginate($this->perPage);
+        $totalTagihan   = 0;
+        $totalPaid      = 0;
+        $totalRefund    = 0;
+        $totalRemaining = 0;
+
+        foreach ($allForSummary as $trx) {
+            // Hitung totalRetur dari subtotal ReturItem
+            $totalReturNominal = $trx
+                ->returs
+                ->flatMap(fn($r) => $r->items)
+                ->sum('subtotal');
+
+            // Net total setelah retur
+            $netTotal = $trx->total - $totalReturNominal;
+            if ($netTotal < 0) {
+                $netTotal = 0;
+            }
+
+            // Tambahkan ke totalRefund
+            $totalRefund += $totalReturNominal;
+
+            // Hitung sudah dibayar = prePaid + creditPayment
+            $prePaid         = $trx->prePaid;
+            $creditPaidSoFar = $trx->creditPayment->sum('payment_total');
+            $alreadyPaid     = $prePaid + $creditPaidSoFar;
+            if ($alreadyPaid < 0) {
+                $alreadyPaid = 0;
+            }
+            $totalPaid += $alreadyPaid;
+
+            // Hitung sisa utang
+            $remaining = $netTotal - $alreadyPaid;
+            if ($remaining < 0) {
+                $remaining = 0;
+            }
+            $totalRemaining += $remaining;
+
+            // Tambahkan ke totalTagihan
+            $totalTagihan += $netTotal;
+        }
+
+        // 6) Pagination untuk tabel
+        $transactions = (clone $baseQuery)
+            ->orderBy($this->sortField, $this->sortDirection)
+            ->paginate($this->perPage);
 
         return view('livewire.credit.customer-credit-table', [
-            'customers'    => $customers,
-            'transactions' => $transactions,
+            'customers'     => $customers,
+            'transactions'  => $transactions,
+            'summaryTotals' => [
+                'totalTagihan'   => $totalTagihan,
+                'totalPaid'      => $totalPaid,
+                'totalRefund'    => $totalRefund,
+                'totalRemaining' => $totalRemaining,
+            ],
         ]);
     }
 }

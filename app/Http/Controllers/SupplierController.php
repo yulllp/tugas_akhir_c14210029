@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class SupplierController extends Controller
 {
@@ -36,7 +37,18 @@ class SupplierController extends Controller
             'address' => 'nullable|string',
         ]);
 
-        Supplier::create($validated);
+        $supplier = Supplier::create($validated);
+
+        activity('supplier')
+            ->performedOn($supplier)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id'      => $supplier->id,
+                'nama'    => $supplier->name,
+                'telepon' => $supplier->phone,
+                'alamat'  => $supplier->address,
+            ])
+            ->log("Supplier #{$supplier->id} berhasil ditambahkan");
 
         return redirect()->route('suppliers.index')->with('success', 'Supplier berhasil ditambahkan.');
     }
@@ -58,6 +70,26 @@ class SupplierController extends Controller
             'phone' => 'nullable|unique:suppliers,phone,' . $supplier->id,
             'address' => 'nullable|string',
         ]);
+
+        $lama = [
+            'nama'    => $supplier->getOriginal('name'),
+            'telepon' => $supplier->getOriginal('phone'),
+            'alamat'  => $supplier->getOriginal('address'),
+        ];
+
+        activity('supplier')
+            ->performedOn($supplier)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'id'   => $supplier->id,
+                'lama' => $lama,
+                'baru' => [
+                    'nama'    => $validated['name'],
+                    'telepon' => $validated['phone'],
+                    'alamat'  => $validated['address'],
+                ],
+            ])
+            ->log("Supplier #{$supplier->id} berhasil diperbarui");
 
         $supplier->update($validated);
 
