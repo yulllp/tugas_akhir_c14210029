@@ -181,7 +181,7 @@
             <input type="date" id="mov-end" class="mt-1 block w-40 rounded-md border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-indigo-500 focus:border-indigo-500">
           </div>
         </div>
-        <div class="self-end">
+        <div class="self-center">
           <button id="btn-refresh-mov" class="px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-400">
             Terapkan
           </button>

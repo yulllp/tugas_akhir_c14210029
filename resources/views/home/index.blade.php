@@ -98,7 +98,7 @@
         </table>
 
         <div class="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-700 text-right">
-          <a href="#" class="text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:underline">
+          <a href="{{ route('reports.stockIndex') }}" class="text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:underline">
             Lihat Lebih…
           </a>
         </div>

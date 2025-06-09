@@ -516,7 +516,7 @@
     $('#range').on('change', function() {
       const val = $(this).val();
       const today = new Date().toLocaleDateString('sv-SE', {
-        timeZone: 'Asia/Jakarta' // using Jakarta timezone
+        timeZone: 'Asia/Jayapura'
       });
 
       $('#start, #end').addClass('hidden');

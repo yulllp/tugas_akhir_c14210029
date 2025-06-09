@@ -1,19 +1,28 @@
 <x-layout>
   <h2 class="mx-auto max-w-screen-xl mb-4 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-3xl dark:text-white">POS</h2>
   @if (session('transaction_id'))
-  <div id="successModal" class="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-    <div class="bg-gray-800 text-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
-      <h2 class="text-lg font-semibold mb-4 text-white text-center">Transaksi berhasil disimpan</h2>
+  <!-- 1) Make the overlay switch colors -->
+  <div
+    id="successModal"
+    class="fixed inset-0 bg-white/30 dark:bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
+  >
+    <!-- 2) Inner panel: white on light, gray-800 on dark; text likewise -->
+    <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+      <h2 class="text-lg font-semibold mb-4 text-center">
+        Transaksi berhasil disimpan
+      </h2>
       <div class="flex justify-center gap-4">
         <button
           id="printButton"
           data-transaction-id="{{ session('transaction_id') }}"
-          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition">
+          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition"
+        >
           Cetak
         </button>
         <button
           onclick="document.getElementById('successModal').remove()"
-          class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition">
+          class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded transition"
+        >
           Batal
         </button>
       </div>
