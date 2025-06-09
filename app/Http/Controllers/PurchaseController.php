@@ -64,9 +64,9 @@ class PurchaseController extends Controller
     {
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'qty'        => 'required|integer|min:1',
-            'buyPrice'   => 'required|numeric|min:0',
-            'expDate'    => 'nullable|date|after_or_equal:today',
+            'qty' => 'required|integer|min:1',
+            'buyPrice' => 'required|numeric|min:0',
+            'expDate' => 'nullable|date|after_or_equal:today',
         ]);
 
         $userId = Auth::id();
@@ -88,12 +88,12 @@ class PurchaseController extends Controller
         $subtotal = $buyPrice * $qty;
 
         TempPurchase::create([
-            'user_id'    => $userId,
+            'user_id' => $userId,
             'product_id' => $request->product_id,
-            'qty'        => $qty,
-            'buyPrice'   => $buyPrice,
-            'subtotal'   => $subtotal,
-            'expDate'    => $request->expDate,
+            'qty' => $qty,
+            'buyPrice' => $buyPrice,
+            'subtotal' => $subtotal,
+            'expDate' => $request->expDate,
         ]);
 
         return response()->json([
@@ -131,12 +131,12 @@ class PurchaseController extends Controller
         }
 
         $validated = Validator::make($final, [
-            'faktur'     => 'required|string',
-            'total'       => 'required|numeric|min:0',
-            'paid'        => 'required|numeric|min:0',
+            'faktur' => 'required|string',
+            'total' => 'required|numeric|min:0',
+            'paid' => 'required|numeric|min:0',
             'supplier_id' => 'required|exists:suppliers,id',
-            'credit'      => 'required|boolean',
-            'shipping'    => 'required|in:arrive,pending',
+            'credit' => 'required|boolean',
+            'shipping' => 'required|in:arrive,pending',
         ]);
 
         if ($validated->fails()) {
@@ -162,15 +162,15 @@ class PurchaseController extends Controller
                 : null;
 
             $purchase = Purchase::create([
-                'user_id'     => Auth::id(),
-                'buyDate'     => Carbon::now(),
+                'user_id' => Auth::id(),
+                'buyDate' => Carbon::now(),
                 'supplier_id' => $final['supplier_id'],
-                'faktur'     => $final['faktur'],
-                'total'       => $final['total'],
-                'prePaid'     => $final['paid'],
-                'status'      => $final['credit'] ? 'unpaid' : 'paid',
-                'shipping'    => $final['shipping'],
-                'entryDate'   => $entryDate,
+                'faktur' => $final['faktur'],
+                'total' => $final['total'],
+                'prePaid' => $final['paid'],
+                'status' => $final['credit'] ? 'unpaid' : 'paid',
+                'shipping' => $final['shipping'],
+                'entryDate' => $entryDate,
             ]);
 
             foreach ($tempItems as $temp) {
@@ -187,7 +187,7 @@ class PurchaseController extends Controller
                 if (!$latestPrice) {
                     ProductPrice::create([
                         'product_id' => $product->id,
-                        'sellPrice'  => $temp->price,
+                        'sellPrice' => $temp->price,
                     ]);
                 } else {
                     if ($temp->buyPrice > $latestPrice->sellPrice) {
@@ -203,18 +203,18 @@ class PurchaseController extends Controller
 
                         ProductPrice::create([
                             'product_id' => $product->id,
-                            'sellPrice'  => $newSellPrice,
+                            'sellPrice' => $newSellPrice,
                         ]);
                     }
                 }
 
                 ProductPurchase::create([
                     'purchase_id' => $purchase->id,
-                    'product_id'  => $product->id,
-                    'qty'         => $temp->qty,
-                    'buyPrice'    => $temp->buyPrice,
-                    'subtotal'    => $temp->subtotal,
-                    'expDate'     => $temp->expDate,
+                    'product_id' => $product->id,
+                    'qty' => $temp->qty,
+                    'buyPrice' => $temp->buyPrice,
+                    'subtotal' => $temp->subtotal,
+                    'expDate' => $temp->expDate,
                 ]);
 
                 if ($final['shipping'] === 'arrive') {
@@ -230,13 +230,13 @@ class PurchaseController extends Controller
                 ->performedOn($purchase)
                 ->causedBy(Auth::user())
                 ->withProperties([
-                    'id'            => $purchase->id,
-                    'faktur'        => $purchase->faktur,
-                    'total'         => $purchase->total,
-                    'dibayar'       => $purchase->prePaid,
-                    'supplier_id'   => $purchase->supplier_id,
-                    'status'        => $purchase->status,
-                    'shipping'      => $purchase->shipping,
+                    'id' => $purchase->id,
+                    'faktur' => $purchase->faktur,
+                    'total' => $purchase->total,
+                    'dibayar' => $purchase->prePaid,
+                    'supplier_id' => $purchase->supplier_id,
+                    'status' => $purchase->status,
+                    'shipping' => $purchase->shipping,
                     'tanggal_entry' => optional($purchase->entryDate)->format('d-m-Y H:i'),
                 ])
                 ->log("Pembelian #{$purchase->id} berhasil dibuat");
@@ -267,14 +267,14 @@ class PurchaseController extends Controller
      */
     public function edit(int $id)   // ← route parameter is now the ID
     {
-        $purchase  = Purchase::with('productPurchase.product')->findOrFail($id);
+        $purchase = Purchase::with('productPurchase.product')->findOrFail($id);
 
         $suppliers = Supplier::orderBy('name')->get();
 
         return view('purchase.edit', [
-            'purchase'  => $purchase,
+            'purchase' => $purchase,
             'suppliers' => $suppliers,
-            'title'     => 'Edit Pembelian #' . $purchase->id,
+            'title' => 'Edit Pembelian #' . $purchase->id,
         ]);
     }
 
@@ -286,61 +286,73 @@ class PurchaseController extends Controller
         $purchase = Purchase::with('productPurchase')
             ->findOrFail($id);
 
-
+        // Validasi input
         $validated = Validator::make($request->all(), [
             'supplier_id' => 'required|exists:suppliers,id',
-            'shipping'    => 'required|in:arrive,pending',
+            'shipping' => 'required|in:arrive,pending',
         ])->validate();
 
         $shippingWasPending = $purchase->shipping === 'pending';
-        $shippingNowArrive  = $validated['shipping'] === 'arrive';
-        $shouldUpdateStock  = $shippingWasPending && $shippingNowArrive;
+        $shippingNowArrive = $validated['shipping'] === 'arrive';
+        $shouldUpdateStock = $shippingWasPending && $shippingNowArrive;
 
-        DB::transaction(function () use (
-            $purchase,
-            $validated,
-            $shouldUpdateStock,
-        ) {
-
+        try {
+            // Update data pembelian
             $purchase->update([
                 'supplier_id' => $validated['supplier_id'],
-                // only allow “shipping” to be set once to arrive
-                'shipping'  => $purchase->shipping === 'arrive'
-                    ? 'arrive'                      // already arrived → lock
+                // only allow "shipping" to be set once to arrive
+                'shipping' => $purchase->shipping === 'arrive'
+                    ? 'arrive'
                     : $validated['shipping'],
                 'entryDate' => $shouldUpdateStock
                     ? now()
                     : $purchase->entryDate,
             ]);
 
+            // Jika status berubah dari pending ke arrive, perbarui stok produk
             if ($shouldUpdateStock) {
                 foreach ($purchase->productPurchase as $item) {
                     $item->product()->increment('totalStok', $item->qty);
                 }
             }
-        });
 
-        activity('pembelian')
-            ->performedOn($purchase)
-            ->causedBy(Auth::user())
-            ->withProperties([
-                'id'      => $purchase->id,
-                'lama'    => [
-                    'supplier_id' => $purchase->getOriginal('supplier_id'),
-                    'shipping'    => $purchase->getOriginal('shipping'),
-                ],
-                'baru'    => [
-                    'supplier_id' => $validated['supplier_id'],
-                    'shipping'    => $purchase->shipping,
-                ],
-                'entryDate_lama' => optional($purchase->getOriginal('entryDate'))->format('d-m-Y H:i'),
-                'entryDate_baru' => optional($purchase->entryDate)->format('d-m-Y H:i'),
-            ])
-            ->log("Pembelian #{$purchase->id} berhasil diperbarui");
+            // Log aktivitas
+            activity('pembelian')
+                ->performedOn($purchase)
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'id' => $purchase->id,
+                    'lama' => [
+                        'supplier_id' => $purchase->getOriginal('supplier_id'),
+                        'shipping' => $purchase->getOriginal('shipping'),
+                    ],
+                    'baru' => [
+                        'supplier_id' => $validated['supplier_id'],
+                        'shipping' => $purchase->shipping,
+                    ],
+                    'entryDate_lama' => optional($purchase->getOriginal('entryDate'))->format('d-m-Y H:i'),
+                    'entryDate_baru' => optional($purchase->entryDate)->format('d-m-Y H:i'),
+                ])
+                ->log("Pembelian #{$purchase->id} berhasil diperbarui");
 
-        return redirect()
-            ->route('purchases.show', $purchase->id)
-            ->with('success', 'Pembelian berhasil diperbarui.');
+            return redirect()
+                ->route('purchases.show', $purchase->id)
+                ->with('success', 'Pembelian berhasil diperbarui.');
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Tangani error database
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['db_error' => 'Gagal memperbarui pembelian: ' . $e->getMessage()]);
+
+        } catch (\Exception $e) {
+            // Tangani error umum
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
+        }
     }
 
     /**

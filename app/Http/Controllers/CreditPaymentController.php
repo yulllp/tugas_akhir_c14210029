@@ -34,12 +34,13 @@ class CreditPaymentController extends Controller
     {
         $payload = $request->validate([
             'payDate' => ['required', 'date_format:Y-m-d\TH:i'],
-            'payment_total'  => ['required', 'numeric', 'min:1'],
-            'description'    => ['nullable', 'string'],
+            'payment_total' => ['required', 'numeric', 'min:1'],
+            'description' => ['nullable', 'string'],
         ]);
 
-        DB::transaction(function () use ($transaction, $payload) {
+        try {
             $transaction->lockForUpdate();
+
             $totalReturNominal = $transaction
                 ->returs()
                 ->with('items')
@@ -53,27 +54,35 @@ class CreditPaymentController extends Controller
                 ->sum('payment_total');
 
             $alreadyPaid = $initialPaid + $creditPaidSoFar;
-
             $effectiveTotal = $transaction->total - $totalReturNominal;
+            $remainingBefore = $effectiveTotal - $alreadyPaid;
 
-            $remainingBeforeThisPayment = $effectiveTotal - $alreadyPaid;
-
-            if ($payload['payment_total'] > $remainingBeforeThisPayment) {
+            if ($payload['payment_total'] > $remainingBefore) {
                 abort(422, 'Nominal pembayaran melebihi sisa tagihan setelah retur.');
             }
 
             $transaction->creditPayment()->create($payload);
 
-            $newCreditPaidSoFar = $creditPaidSoFar + $payload['payment_total'];
-            $newAlreadyPaid = $initialPaid + $newCreditPaidSoFar;
+            $newCreditPaid = $creditPaidSoFar + $payload['payment_total'];
+            $newAlreadyPaid = $initialPaid + $newCreditPaid;
 
             if ($newAlreadyPaid >= $effectiveTotal) {
                 $transaction->status = 'paid';
                 $transaction->save();
             }
-        });
 
-        return back()->with('success', 'Pembayaran berhasil disimpan.');
+            return back()->with('success', 'Pembayaran berhasil disimpan.');
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()
+                ->withInput()
+                ->withErrors(['db_error' => 'Gagal menyimpan pembayaran: ' . $e->getMessage()]);
+
+        } catch (\Exception $e) {
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
+        }
     }
 
     /**

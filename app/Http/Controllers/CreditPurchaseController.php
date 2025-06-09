@@ -32,15 +32,18 @@ class CreditPurchaseController extends Controller
      */
     public function store(Request $request, Purchase $purchase)
     {
+        // Validasi input
         $payload = $request->validate([
             'payDate' => ['required', 'date_format:Y-m-d\TH:i'],
             'payment_total' => ['required', 'numeric', 'min:1'],
-            'description'   => ['nullable', 'string'],
+            'description' => ['nullable', 'string'],
         ]);
 
-        DB::transaction(function () use ($purchase, $payload) {
+        try {
+            // Kunci baris purchase
             $purchase->lockForUpdate();
 
+            // Hitung total retur
             $totalReturNominal = $purchase
                 ->returs()
                 ->with('items')
@@ -48,34 +51,48 @@ class CreditPurchaseController extends Controller
                 ->flatMap(fn($r) => $r->items)
                 ->sum('subtotal');
 
-            $initialPaid     = $purchase->prePaid;
+            $initialPaid = $purchase->prePaid;
             $creditPaidSoFar = $purchase
                 ->creditPurchase()
                 ->sum('payment_total');
 
             $alreadyPaid = $initialPaid + $creditPaidSoFar;
-
             $effectiveTotal = $purchase->total - $totalReturNominal;
+            $remainingBefore = $effectiveTotal - $alreadyPaid;
 
-            $remainingBeforeThisPayment = $effectiveTotal - $alreadyPaid;
-
-            if ($payload['payment_total'] > $remainingBeforeThisPayment) {
+            // Validasi tidak overpay
+            if ($payload['payment_total'] > $remainingBefore) {
                 abort(422, 'Nominal pembayaran melebihi sisa tagihan setelah retur.');
             }
 
+            // Simpan pembayaran baru
             $purchase->creditPurchase()->create($payload);
 
-            $newCreditPaidSoFar = $creditPaidSoFar + $payload['payment_total'];
-            $newAlreadyPaid     = $initialPaid + $newCreditPaidSoFar;
+            // Update status jika sudah lunas
+            $newCreditPaid = $creditPaidSoFar + $payload['payment_total'];
+            $newAlreadyPaid = $initialPaid + $newCreditPaid;
 
             if ($newAlreadyPaid >= $effectiveTotal) {
                 $purchase->status = 'paid';
                 $purchase->save();
             }
-        });
 
-        return back()->with('success', 'Pembayaran berhasil disimpan.');
+            return back()->with('success', 'Pembayaran berhasil disimpan.');
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Tangani error database
+            return back()
+                ->withInput()
+                ->withErrors(['db_error' => 'Gagal menyimpan pembayaran: ' . $e->getMessage()]);
+
+        } catch (\Exception $e) {
+            // Tangani error umum
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
+        }
     }
+
 
     /**
      * Display the specified resource.
