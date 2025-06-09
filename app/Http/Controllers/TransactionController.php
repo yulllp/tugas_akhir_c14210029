@@ -77,6 +77,7 @@ class TransactionController extends Controller
             ->first();
 
         if ($existing) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Produk sudah ditambahkan.'

@@ -1,8 +1,6 @@
 <x-layout>
   <div class="container mx-auto">
-    <h2 class="mx-auto max-w-screen-xl mb-8 text-2xl font-extrabold leading-none tracking-tight text-gray-900 dark:text-white">
-      Log Aktivitas
-    </h2>
+    <h2 class="mx-auto max-w-screen-xl mb-8 text-2xl font-extrabold leading-none tracking-tight text-gray-900 md:text-3xl dark:text-white">Log Aktivitas</h2>
 
     <div class="overflow-x-auto shadow-lg rounded-lg">
       <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
