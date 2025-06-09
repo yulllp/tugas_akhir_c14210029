@@ -188,8 +188,6 @@ class TransactionController extends Controller
                 ->withInput();
         }
 
-        DB::beginTransaction();
-
         try {
             // Ambil item dari temp_transaction user saat ini
             $tempItems = TempTransaction::where('user_id', Auth::id())->get();
@@ -252,8 +250,6 @@ class TransactionController extends Controller
                     'pelanggan_id' => $transaction->customer_id,
                 ])
                 ->log("Transaksi #{$transaction->id} berhasil dibuat");
-
-            DB::commit();
 
             return redirect()
                 ->route('transactions.create')
