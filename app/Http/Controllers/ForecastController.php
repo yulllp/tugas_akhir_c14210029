@@ -114,8 +114,8 @@ class ForecastController extends Controller
 
                     // Grid‐search Holt–Winters
                     $alphaGrid = array_map(fn($a) => round($a, 2), range(0.1, 0.9, 0.1));
-                    $betaGrid = [0.01, 0.05, 0.1, 0.2];
-                    $gammaGrid = [0.01, 0.05, 0.1, 0.2];
+                    $betaGrid = array_map(fn($b) => round($b, 2), range(0.05, 0.90, 0.05));
+                    $gammaGrid = array_map(fn($g) => round($g, 2), range(0.05, 0.90, 0.05));
 
                     $gridResult = HoltWinters::gridSearch(
                         $trainSeries,
