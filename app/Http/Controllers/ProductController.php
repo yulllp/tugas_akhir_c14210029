@@ -48,6 +48,7 @@ class ProductController extends Controller
     }
     public function store(Request $request)
     {
+
         $validated = $request->validate([
             'kode' => 'required|unique:products,productCode',
             'name' => 'required|unique:products,name',
@@ -55,34 +56,53 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated) {
+        try {
+            // Buat record product
             $product = Product::create([
                 'productCode' => $validated['kode'],
                 'name' => $validated['name'],
                 'minStok' => $validated['minStok'],
             ]);
 
+            // Buat record harga
             ProductPrice::create([
                 'product_id' => $product->id,
                 'sellPrice' => $validated['price'],
             ]);
 
+            // Log aktivitas
             activity('product')
                 ->performedOn($product)
                 ->causedBy(Auth::user())
                 ->withProperties([
-                    'id'        => $product->id,
-                    'nama'      => $product->name,
+                    'id' => $product->id,
+                    'nama' => $product->name,
                     'kode' => $product->productCode,
-                    'harga'     => $validated['price'],
+                    'harga' => $validated['price'],
                 ])
                 ->log("Produk #{$product->id} berhasil ditambahkan");
-        });
 
-        DB::commit();
+            // Redirect sukses
+            return redirect()
+                ->route('products.index')
+                ->with('success', 'Produk berhasil ditambahkan');
 
-        return redirect()->route('products.index')->with('success', 'Produk berhasil ditambahkan');
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Tangani error DB khusus
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['db_error' => 'Gagal menyimpan produk: ' . $e->getMessage()]);
+
+        } catch (\Exception $e) {
+            // Tangani error umum
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
+        }
     }
+
 
     /**
      * Display the specified resource.
@@ -153,18 +173,18 @@ class ProductController extends Controller
             ->performedOn($product)
             ->causedBy(Auth::user())
             ->withProperties([
-                'id'  => $product->id,
+                'id' => $product->id,
                 'lama' => [
-                    'nama'     => $product->getOriginal('name'),
-                    'kode'     => $product->getOriginal('productCode'),
+                    'nama' => $product->getOriginal('name'),
+                    'kode' => $product->getOriginal('productCode'),
                     'stok_min' => $product->getOriginal('minStok'),
-                    'harga'    => $latestPrice ? $latestPrice->sellPrice : null,
+                    'harga' => $latestPrice ? $latestPrice->sellPrice : null,
                 ],
                 'baru' => [
-                    'nama'     => $validated['name'],
-                    'kode'     => $validated['kode'],
+                    'nama' => $validated['name'],
+                    'kode' => $validated['kode'],
                     'stok_min' => $validated['minStok'],
-                    'harga'    => $validated['price'],
+                    'harga' => $validated['price'],
                 ],
             ])
             ->log("Produk #{$product->id} berhasil diperbarui");
