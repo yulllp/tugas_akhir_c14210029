@@ -281,6 +281,7 @@ class PurchaseController extends Controller
     /**
      * Update the specified resource in storage.
      */
+
     public function update(Request $request, int $id)
     {
         $purchase = Purchase::with('productPurchase')
@@ -290,6 +291,7 @@ class PurchaseController extends Controller
         $validated = Validator::make($request->all(), [
             'supplier_id' => 'required|exists:suppliers,id',
             'shipping' => 'required|in:arrive,pending',
+            'fraktur' => 'required|string',
         ])->validate();
 
         $shippingWasPending = $purchase->shipping === 'pending';
@@ -307,6 +309,7 @@ class PurchaseController extends Controller
                 'entryDate' => $shouldUpdateStock
                     ? now()
                     : $purchase->entryDate,
+                'faktur' => $validated['fraktur'],
             ]);
 
             // Jika status berubah dari pending ke arrive, perbarui stok produk
@@ -325,10 +328,12 @@ class PurchaseController extends Controller
                     'lama' => [
                         'supplier_id' => $purchase->getOriginal('supplier_id'),
                         'shipping' => $purchase->getOriginal('shipping'),
+                        'fraktur' => $purchase->getOriginal('fraktur'),
                     ],
                     'baru' => [
                         'supplier_id' => $validated['supplier_id'],
                         'shipping' => $purchase->shipping,
+                        'fraktur' => $validated['fraktur'],
                     ],
                     'entryDate_lama' => optional($purchase->getOriginal('entryDate'))->format('d-m-Y H:i'),
                     'entryDate_baru' => optional($purchase->entryDate)->format('d-m-Y H:i'),
@@ -354,6 +359,8 @@ class PurchaseController extends Controller
                 ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
         }
     }
+
+
 
     /**
      * Remove the specified resource from storage.
