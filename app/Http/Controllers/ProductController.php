@@ -60,7 +60,6 @@ class ProductController extends Controller
                 'productCode' => $validated['kode'],
                 'name' => $validated['name'],
                 'minStok' => $validated['minStok'],
-                'notify' => false,
             ]);
 
             ProductPrice::create([
@@ -79,6 +78,8 @@ class ProductController extends Controller
                 ])
                 ->log("Produk #{$product->id} berhasil ditambahkan");
         });
+
+        DB::commit();
 
         return redirect()->route('products.index')->with('success', 'Produk berhasil ditambahkan');
     }
