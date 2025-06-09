@@ -14,156 +14,153 @@ class ForecastController extends Controller
     public function index(Request $request)
     {
         // 1) Load all products for the dropdown
-        $products        = Product::orderBy('name')->get(['id', 'name']);
+        $products = Product::orderBy('name')->get(['id', 'name']);
         $trainingResults = null;
-        $realForecast    = null;
+        $realForecast = null;
 
         if ($request->filled('product_id')) {
-            $productId   = (int) $request->input('product_id');
-            $product     = Product::find($productId);
+            $productId = (int) $request->input('product_id');
+            $product = Product::find($productId);
             $productName = $product?->name ?: '—';
 
-            // A) TRAINING & VALIDATION
-            $firstRow = DB::table('detail_transactions as d')
-                ->join('transactions as t', 't.id', '=', 'd.transaction_id')
-                ->where('d.product_id', $productId)
-                ->selectRaw('MIN(DATE_TRUNC(\'month\', t.transaction_at)) AS first_month')
-                ->first();
-
-            $lastRow = DB::table('detail_transactions as d')
-                ->join('transactions as t', 't.id', '=', 'd.transaction_id')
-                ->where('d.product_id', $productId)
-                ->selectRaw('MAX(DATE_TRUNC(\'month\', t.transaction_at)) AS last_month')
-                ->first();
-
-            if (! $firstRow || ! $firstRow->first_month) {
+            if (!$product) {
                 $trainingResults = [
-                    'error'        => 'Produk belum memiliki transaksi sama sekali.',
+                    'error' => 'Produk tidak ditemukan.',
                     'product_name' => $productName,
                 ];
             } else {
-                $firstReal  = Carbon::parse($firstRow->first_month)->startOfMonth();
-                $lastReal   = Carbon::parse($lastRow->last_month)->startOfMonth();
-                $today      = Carbon::now();
+                // 2) Anchor on product creation date
+                $createdAt = Carbon::parse($product->created_at)->startOfDay();
+                $firstYear = (int) $createdAt->year;
+                // if created mid-year, skip that partial year:
+                if ($createdAt->month > 1 || $createdAt->day > 1) {
+                    $firstYear += 1;
+                }
 
-                // Last fully completed calendar year
-                $lastFullYear   = $today->year - 1;
-                $actualLastYear = min($lastReal->year, $lastFullYear);
+                $today = Carbon::now();
+                $lastFullYear = $today->year - 1;
 
-                if ($actualLastYear < $firstReal->year) {
+                // figure out last calendar year we can include
+                // but we also must have at least one transaction in that year for validation later
+                $lastRow = DB::table('detail_transactions as d')
+                    ->join('transactions as t', 't.id', '=', 'd.transaction_id')
+                    ->where('d.product_id', $productId)
+                    ->selectRaw('MAX(EXTRACT(YEAR FROM t.transaction_at))::INT AS last_year')
+                    ->first();
+
+                $actualLastYear = min($lastRow->last_year ?? 0, $lastFullYear);
+
+                // no transactions at all?
+                if (!$lastRow->last_year) {
                     $trainingResults = [
-                        'error'        => 'Belum ada satu tahun penuh data historis yang lengkap.',
+                        'error' => 'Produk belum memiliki transaksi sama sekali.',
+                        'product_name' => $productName,
+                    ];
+                }
+                // not enough full years
+                elseif (($actualLastYear - $firstYear + 1) < 2) {
+                    $trainingResults = [
+                        'error' => 'Dibutuhkan minimal dua tahun penuh (Jan–Dec) untuk training & validation.',
                         'product_name' => $productName,
                     ];
                 } else {
-                    // Anchor Jan(firstReal.year) .. Dec(actualLastYear)
-                    $startSeries = Carbon::create($firstReal->year, 1, 1);
-                    $endSeries   = Carbon::create($actualLastYear, 12, 1);
+                    // define series Jan–Dec for each full year
+                    $startSeries = Carbon::create($firstYear, 1, 1);
+                    $endSeries = Carbon::create($actualLastYear, 12, 1);
 
                     // Pull & aggregate monthly qty
                     $rows = DB::table('detail_transactions as d')
                         ->join('transactions as t', 't.id', '=', 'd.transaction_id')
                         ->where('d.product_id', $productId)
-                        ->whereBetween('t.transaction_at', [
-                            $startSeries->format('Y-m-01'),
-                            $endSeries->copy()->endOfMonth()->format('Y-m-d'),
-                        ])
+                        ->whereYear('t.transaction_at', '>=', $firstYear)
+                        ->whereYear('t.transaction_at', '<=', $actualLastYear)
                         ->selectRaw(
                             'EXTRACT(YEAR FROM t.transaction_at)::INT AS year, '
                             . 'EXTRACT(MONTH FROM t.transaction_at)::INT AS month, '
                             . 'SUM(d.qty) AS total_qty'
                         )
-                        ->groupBy('year','month')
-                        ->orderBy('year','asc')
-                        ->orderBy('month','asc')
+                        ->groupBy('year', 'month')
+                        ->orderBy('year', 'asc')
+                        ->orderBy('month', 'asc')
                         ->get();
 
-                    // Build quick lookup
+                    // Build lookup
                     $lookup = [];
                     foreach ($rows as $r) {
                         $lookup[sprintf('%04d-%02d', $r->year, $r->month)] = (float) $r->total_qty;
                     }
 
                     // Zero‐fill all months in range
-                    $cursor     = $startSeries->copy();
+                    $cursor = $startSeries->copy();
                     $zeroFilled = [];
-                    $labelsAll  = [];
+                    $labelsAll = [];
 
                     while ($cursor->lte($endSeries)) {
                         $key = $cursor->format('Y-m');
                         $zeroFilled[] = $lookup[$key] ?? 0.0;
-                        $labelsAll[]  = $cursor->format('M Y');
+                        $labelsAll[] = $cursor->format('M Y');
                         $cursor->addMonth();
                     }
 
-                    // Must have at least two full years
-                    $yearsCount = $actualLastYear - $firstReal->year + 1;
-                    if ($yearsCount < 2) {
-                        $trainingResults = [
-                            'error'        => 'Dibutuhkan minimal dua tahun penuh (Jan–Dec) untuk training & validation.',
-                            'product_name' => $productName,
-                        ];
-                    } else {
-                        // Split: train = all but final year; test = final calendar year
-                        $monthsPerYear = 12;
-                        $trainMonths   = ($yearsCount - 1) * $monthsPerYear;
-                        $testMonths    = $monthsPerYear;
+                    // Split: train = all but final year; test = final calendar year
+                    $monthsPerYear = 12;
+                    $yearsCount = $actualLastYear - $firstYear + 1;
+                    $trainMonths = ($yearsCount - 1) * $monthsPerYear;
+                    $testMonths = $monthsPerYear;
 
-                        $trainSeries = array_slice($zeroFilled, 0, $trainMonths);
-                        $testSeries  = array_slice($zeroFilled, $trainMonths, $testMonths);
-                        $testLabels  = array_slice($labelsAll, $trainMonths, $testMonths);
+                    $trainSeries = array_slice($zeroFilled, 0, $trainMonths);
+                    $testSeries = array_slice($zeroFilled, $trainMonths, $testMonths);
+                    $testLabels = array_slice($labelsAll, $trainMonths, $testMonths);
 
-                        // Grid‐search Holt–Winters
-                        $alphaGrid = array_map(fn($a) => round($a,2), range(0.1,0.9,0.1));
-                        $betaGrid  = [0.01, 0.05, 0.1, 0.2];
-                        $gammaGrid = [0.01, 0.05, 0.1, 0.2];
+                    // Grid‐search Holt–Winters
+                    $alphaGrid = array_map(fn($a) => round($a, 2), range(0.1, 0.9, 0.1));
+                    $betaGrid = [0.01, 0.05, 0.1, 0.2];
+                    $gammaGrid = [0.01, 0.05, 0.1, 0.2];
 
-                        $gridResult = HoltWinters::gridSearch(
-                            $trainSeries,
-                            $testSeries,
-                            $alphaGrid,
-                            $betaGrid,
-                            $gammaGrid,
-                            $monthsPerYear
-                        );
+                    $gridResult = HoltWinters::gridSearch(
+                        $trainSeries,
+                        $testSeries,
+                        $alphaGrid,
+                        $betaGrid,
+                        $gammaGrid,
+                        $monthsPerYear
+                    );
 
-                        // --- Build trainingResults with product_name & validationYear ---
-                        $trainingResults = [
-                            'product_name'   => $productName,
-                            'validationYear' => $actualLastYear,
-                            'trainSeries'    => $trainSeries,
-                            'testSeries'     => $testSeries,
-                            'testForecast'   => $gridResult['forecast'],
-                            'testLabels'     => $testLabels,
-                            'alpha'          => $gridResult['alpha'],
-                            'beta'           => $gridResult['beta'],
-                            'gamma'          => $gridResult['gamma'],
-                            'mae'            => $gridResult['mae'],
-                            'mape'           => $gridResult['mape'],
-                        ];
+                    $trainingResults = [
+                        'product_name' => $productName,
+                        'validationYear' => $actualLastYear,
+                        'trainSeries' => $trainSeries,
+                        'testSeries' => $testSeries,
+                        'testForecast' => $gridResult['forecast'],
+                        'testLabels' => $testLabels,
+                        'alpha' => $gridResult['alpha'],
+                        'beta' => $gridResult['beta'],
+                        'gamma' => $gridResult['gamma'],
+                        'mae' => $gridResult['mae'],
+                        'mape' => $gridResult['mape'],
+                    ];
 
-                        // B) REAL FORECASTING (12 months beyond Dec(actualLastYear)), in-memory only
-                        $hwFull       = HoltWinters::multiplicative(
-                            $zeroFilled, 
-                            $monthsPerYear,
-                            $gridResult['alpha'],
-                            $gridResult['beta'],
-                            $gridResult['gamma']
-                        );
+                    // B) REAL FORECASTING (12 months beyond Dec(actualLastYear)), in-memory only
+                    $hwFull = HoltWinters::multiplicative(
+                        $zeroFilled,
+                        $monthsPerYear,
+                        $gridResult['alpha'],
+                        $gridResult['beta'],
+                        $gridResult['gamma']
+                    );
 
-                        $realForecast = [
-                            'year'     => $actualLastYear + 1,
-                            'forecast' => $hwFull['forecast'],
-                        ];
-                    }
+                    $realForecast = [
+                        'year' => $actualLastYear + 1,
+                        'forecast' => $hwFull['forecast'],
+                    ];
                 }
             }
         }
 
         return view('forecast.index', [
-            'products'        => $products,
+            'products' => $products,
             'trainingResults' => $trainingResults,
-            'realForecast'    => $realForecast,
+            'realForecast' => $realForecast,
         ]);
     }
 }
