@@ -193,6 +193,7 @@ class TransactionController extends Controller
             $tempItems = TempTransaction::where('user_id', Auth::id())->get();
 
             if ($tempItems->isEmpty()) {
+                DB::rollBack();
                 return redirect()
                     ->route('transactions.create')
                     ->with('error', 'Tidak ada item dalam transaksi.');
@@ -201,7 +202,6 @@ class TransactionController extends Controller
             foreach ($tempItems as $item) {
                 $product = Product::find($item->product_id);
                 if (!$product || $product->totalStok < $item->qty) {
-                    DB::rollBack();
                     return redirect()
                         ->route('transactions.create')
                         ->with('error', "Stok tidak mencukupi untuk produk: {$product->name}");
