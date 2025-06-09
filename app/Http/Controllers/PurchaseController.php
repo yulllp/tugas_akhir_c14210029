@@ -154,7 +154,7 @@ class PurchaseController extends Controller
                 ->with('error', 'Tidak ada item pembelian.');
         }
 
-        DB::beginTransaction();
+        // DB::beginTransaction();
 
         try {
             $entryDate = $final['shipping'] === 'arrive'
@@ -224,7 +224,7 @@ class PurchaseController extends Controller
 
             TempPurchase::where('user_id', Auth::id())->delete();
 
-            DB::commit();
+            // DB::commit();
 
             activity('pembelian')
                 ->performedOn($purchase)

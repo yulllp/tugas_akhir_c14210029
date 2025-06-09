@@ -88,7 +88,7 @@ class StokOpnameScheduleController extends Controller
             return redirect()->back()->with('error', 'Stok opname sudah diperiksa dan tidak dapat diubah.');
         }
 
-        DB::beginTransaction();
+        // DB::beginTransaction();
 
         try {
             $hasChanges = false;
@@ -148,7 +148,7 @@ class StokOpnameScheduleController extends Controller
                 'finish_at'  => now(),
             ]);
 
-            DB::commit();
+            // DB::commit();
 
             activity('stok_opname')
                 ->performedOn($schedule)

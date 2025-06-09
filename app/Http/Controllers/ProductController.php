@@ -130,7 +130,7 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
         ]);
 
-        DB::beginTransaction();
+        // DB::beginTransaction();
 
         // Update product details
         $product->update([
@@ -168,7 +168,7 @@ class ProductController extends Controller
             ])
             ->log("Produk #{$product->id} berhasil diperbarui");
 
-        DB::commit();
+        // DB::commit();
 
         // Redirect back to the product show page with success message
         return redirect()->route('products.show', $product->id)->with('success', 'Produk berhasil diperbarui.');

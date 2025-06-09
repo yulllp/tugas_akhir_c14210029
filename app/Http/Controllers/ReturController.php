@@ -57,7 +57,7 @@ class ReturController extends Controller
             'items'          => 'required|array|min:1',
         ]);
 
-        DB::beginTransaction();
+        // DB::beginTransaction();
         try {
             $transaction = Transaction::with('detailTransactions', 'returs.items')->findOrFail($request->transaction_id);
 
@@ -130,7 +130,7 @@ class ReturController extends Controller
             $retur->refund_amount = $refundAmount;
             $retur->save();
 
-            DB::commit();
+            // DB::commit();
 
             activity('retur')
                 ->performedOn($retur)
@@ -161,7 +161,7 @@ class ReturController extends Controller
             'items'       => 'required|array|min:1',
         ]);
 
-        DB::beginTransaction();
+        // DB::beginTransaction();
         try {
             $purchase = Purchase::with('productPurchase', 'returs.items')->findOrFail($request->purchase_id);
 
@@ -240,7 +240,7 @@ class ReturController extends Controller
             $retur->refund_amount = $refundAmount;
             $retur->save();
 
-            DB::commit();
+            // DB::commit();
 
             activity('retur')
                 ->performedOn($retur)
