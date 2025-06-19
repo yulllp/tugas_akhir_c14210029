@@ -42,7 +42,10 @@ class PurchaseController extends Controller
 
     public function getTempPurchase()
     {
-        $tempPurchases = TempPurchase::with(['product.latestPrice'])->get();
+        $tempPurchases = TempPurchase::with(['product.latestPrice'])
+            ->where('user_id', Auth::id())
+            ->orderBy('id', 'asc')
+            ->get();
 
         $formatted = $tempPurchases->map(function ($item) {
             return [

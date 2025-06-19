@@ -43,7 +43,10 @@ class TransactionController extends Controller
 
     public function getTempTransaction()
     {
-        $tempTransactions = TempTransaction::with(['product.latestPrice'])->get();
+        $tempTransactions = TempTransaction::with(['product.latestPrice'])
+            ->where('user_id', Auth::id())
+            ->orderBy('id', 'asc')           // enforce consistent ordering
+            ->get();
 
         // Optional: Format for frontend clarity
         $formatted = $tempTransactions->map(function ($item) {
