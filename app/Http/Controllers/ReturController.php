@@ -130,7 +130,8 @@ class ReturController extends Controller
             $retur->refund_amount = $refundAmount;
             $retur->save();
 
-            if ($effectiveTotalAfterReturn <= 0) {
+            if ($alreadyPaid >= $effectiveTotalAfterReturn) {
+                dd('true');
                 $transaction->status = 'paid';
                 $transaction->save();
             }
@@ -245,7 +246,7 @@ class ReturController extends Controller
             $retur->refund_amount = $refundAmount;
             $retur->save();
 
-            if ($effectiveTotalAfterReturn <= 0) {
+            if ($alreadyPaid >= $effectiveTotalAfterReturn) {
                 $purchase->status = 'paid';
                 $purchase->save();
             }
