@@ -19,167 +19,108 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
 
     public function __construct(Carbon $start, Carbon $end)
     {
+        // normalize to full days
         $this->start = $start->startOfDay();
         $this->end   = $end->endOfDay();
     }
 
-    /**
-     * Build one big array:
-     * [
-     *   [ "Laporan Stok dd-mm-YYYY s/d dd-mm-YYYY" ],  // row 1
-     *   [ ],                                            // row 2 (blank)
-     *   [ "Product Name", "Stock Start", "Stok Masuk", "Stok Keluar", "Stock End" ], // row 3 headings
-     *   [ ... per-product data ... ]                    // row 4+, data rows
-     * ]
-     */
     public function array(): array
     {
         $rows = [];
 
         // 1) Title row
-        $titleText = "Laporan Stok {$this->start->format('d-m-Y')} s/d {$this->end->format('d-m-Y')}";
-        $rows[] = [$titleText];
+        $rows[] = ["Laporan Stok {$this->start->format('d-m-Y')} s/d {$this->end->format('d-m-Y')}"];
 
         // 2) Blank row
         $rows[] = [];
 
         // 3) Headings
-        $rows[] = [
-            'Product Name',
-            'Stock Start',
-            'Stok Masuk',
-            'Stok Keluar',
-            'Stock End',
-        ];
+        $rows[] = ['Product Name', 'Stok Awal', 'Stok Masuk', 'Stok Keluar', 'Stok Akhir'];
 
-        // 4) Data rows (one per product)
-        $products = Product::all();
-        foreach ($products as $product) {
-            // -- Compute Stock Start (all movements < $start) --
-            $stockStart = 0;
+        // 4) Data rows
+        //    — only products created on or before the end date
+        $products = Product::where('created_at', '<=', $this->end)->get();
 
-            // a) Sales before start finish_at → turun stok (keluar)
-            $salesBefore = DetailTransaction::with('transaction')
-                ->where('product_id', $product->id)
-                ->whereHas('transaction', function ($q) {
-                    $q->where('transaction_at', '<', $this->start);
-                })
-                ->get();
-            foreach ($salesBefore as $saleItem) {
-                $stockStart -= $saleItem->qty;
-            }
+        foreach ($products as $p) {
+            // --- STOCK START (all < start) ---
+            // sales (qty out)
+            $sumSalesBefore = DetailTransaction::where('product_id', $p->id)
+                ->whereHas('transaction', fn($q) => $q->where('transaction_at', '<', $this->start))
+                ->sum('qty');
+            $stockStart = - $sumSalesBefore;
 
-            // b) Purchases before start finish_at → naik stok (masuk)
-            $purchasesBefore = ProductPurchase::with('purchase')
-                ->where('product_id', $product->id)
-                ->whereHas('purchase', function ($q) {
-                    $q->where('entryDate', '<', $this->start);
-                })
-                ->get();
-            foreach ($purchasesBefore as $pp) {
-                $stockStart += $pp->qty;
-            }
+            // purchases (qty in)
+            $stockStart += ProductPurchase::where('product_id', $p->id)
+                ->whereHas('purchase', fn($q) => $q->where('entryDate', '<', $this->start))
+                ->sum('qty');
 
-            // c) Returns before start date
-            $retursBefore = ReturItem::with('retur')
-                ->where('product_id', $product->id)
-                ->whereHas('retur', function ($q) {
-                    $q->where('return_date', '<', $this->start);
-                })
-                ->get();
-            foreach ($retursBefore as $r) {
-                if ($r->retur->return_type === 'customer') {
-                    if ($r->condition === 'good') {
-                        $stockStart += $r->qty;      // Retur customer baik → masuk
-                    }
-                    // kalau rusak, tidak menambah stok
-                } else {
-                    // Retur supplier → keluar stok
-                    $stockStart -= $r->qty;
-                }
-            }
+            // returns before
+            $sumReturCustGoodBefore = ReturItem::where('product_id', $p->id)
+                ->whereHas('retur', fn($q) => $q->where('return_date', '<', $this->start)
+                                                  ->where('return_type', 'customer'))
+                ->where('condition', 'good')
+                ->sum('qty');
+            $sumReturSuppBefore    = ReturItem::where('product_id', $p->id)
+                ->whereHas('retur', fn($q) => $q->where('return_date', '<', $this->start)
+                                                  ->where('return_type', 'supplier'))
+                ->sum('qty');
+            // customer good → +, supplier → - 
+            $stockStart += $sumReturCustGoodBefore - $sumReturSuppBefore;
 
-            // d) Stock Opname before start date
-            $opnamesBefore = DetailStokOpname::with('schedule')
-                ->where('product_id', $product->id)
-                ->whereHas('schedule', function ($q) {
-                    $q->where('finish_at', '<', $this->start);
-                })
-                ->get();
-            foreach ($opnamesBefore as $op) {
-                $stockStart += $op->difference; // difference bisa positif (masuk) atau negatif (keluar)
-            }
+            // stock-opname before
+            $stockStart += DetailStokOpname::where('product_id', $p->id)
+                ->whereHas('schedule', fn($q) => $q->where('finish_at', '<', $this->start))
+                ->sum('difference');
 
-            // -- Compute Change (all movements between $start..$end) --
+            // --- CHANGES (between start..end) ---
             $stokMasuk  = 0;
             $stokKeluar = 0;
 
-            // a) Sales in range → turun stok (qty masuk ke Keluar)
-            $salesInRange = DetailTransaction::with('transaction')
-                ->where('product_id', $product->id)
-                ->whereHas('transaction', function ($q) {
-                    $q->whereBetween('transaction_at', [$this->start, $this->end]);
-                })
-                ->get();
-            foreach ($salesInRange as $saleItem) {
-                $stokKeluar += $saleItem->qty;
-            }
+            // sales in range → keluar
+            $stokKeluar += DetailTransaction::where('product_id', $p->id)
+                ->whereHas('transaction', fn($q) => $q->whereBetween('transaction_at', [$this->start, $this->end]))
+                ->sum('qty');
 
-            // b) Purchases in range → naik stok (masuk)
-            $purchasesInRange = ProductPurchase::with('purchase')
-                ->where('product_id', $product->id)
-                ->whereHas('purchase', function ($q) {
-                    $q->whereBetween('entryDate', [$this->start, $this->end]);
-                })
-                ->get();
-            foreach ($purchasesInRange as $pp) {
-                $stokMasuk += $pp->qty;
-            }
+            // purchases in range → masuk
+            $stokMasuk += ProductPurchase::where('product_id', $p->id)
+                ->whereHas('purchase', fn($q) => $q->whereBetween('entryDate', [$this->start, $this->end]))
+                ->sum('qty');
 
-            // c) Returns in range
-            $retursInRange = ReturItem::with('retur')
-                ->where('product_id', $product->id)
-                ->whereHas('retur', function ($q) {
-                    $q->whereBetween('return_date', [$this->start, $this->end]);
-                })
-                ->get();
-            foreach ($retursInRange as $r) {
-                if ($r->retur->return_type === 'customer') {
-                    if ($r->condition === 'good') {
-                        $stokMasuk += $r->qty;   // Retur customer baik → masuk
-                    }
-                    // rusak: tidak menambah stok
-                } else {
-                    // Retur supplier → keluar stok
-                    $stokKeluar += $r->qty;
-                }
-            }
+            // returns in range
+            $sumReturCustGood = ReturItem::where('product_id', $p->id)
+                ->whereHas('retur', fn($q) => $q->whereBetween('return_date', [$this->start, $this->end])
+                                                  ->where('return_type', 'customer'))
+                ->where('condition', 'good')
+                ->sum('qty');
+            $sumReturSupp    = ReturItem::where('product_id', $p->id)
+                ->whereHas('retur', fn($q) => $q->whereBetween('return_date', [$this->start, $this->end])
+                                                  ->where('return_type', 'supplier'))
+                ->sum('qty');
+            $stokMasuk  += $sumReturCustGood;
+            $stokKeluar += $sumReturSupp;
 
-            // d) Stock Opname in range
-            $opnamesInRange = DetailStokOpname::with('schedule')
-                ->where('product_id', $product->id)
-                ->whereHas('schedule', function ($q) {
-                    $q->whereBetween('finish_at', [$this->start, $this->end]);
-                })
-                ->get();
-            foreach ($opnamesInRange as $op) {
-                if ($op->difference > 0) {
-                    $stokMasuk += $op->difference;
-                } else {
-                    $stokKeluar += abs($op->difference);
-                }
-            }
+            // stock-opname in range
+            $sumOpnamePos = DetailStokOpname::where('product_id', $p->id)
+                ->whereHas('schedule', fn($q) => $q->whereBetween('finish_at', [$this->start, $this->end]))
+                ->where('difference', '>', 0)
+                ->sum('difference');
+            $sumOpnameNeg = DetailStokOpname::where('product_id', $p->id)
+                ->whereHas('schedule', fn($q) => $q->whereBetween('finish_at', [$this->start, $this->end]))
+                ->where('difference', '<', 0)
+                ->sum('difference');
+            $stokMasuk  += $sumOpnamePos;
+            $stokKeluar += abs($sumOpnameNeg);
 
-            // -- Stock End = Stock Start + (Masuk - Keluar) --
+            // --- FINAL STOCK END ---
             $stockEnd = $stockStart + ($stokMasuk - $stokKeluar);
 
-            // Add this product’s row
+            // Push the row—every value is guaranteed to be an int (0 if no movements)
             $rows[] = [
-                $product->name,
-                $stockStart,
-                $stokMasuk,
-                $stokKeluar,
-                $stockEnd,
+                $p->name,
+                (int)$stockStart,
+                (int)$stokMasuk,
+                (int)$stokKeluar,
+                (int)$stockEnd,
             ];
         }
 
@@ -191,22 +132,14 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
         return 'Ringkasan Stok';
     }
 
-    /**
-     * Sesuaikan lebar kolom agar tidak collapse.
-     * A → Product Name
-     * B → Stock Start
-     * C → Stok Masuk
-     * D → Stok Keluar
-     * E → Stock End
-     */
     public function columnWidths(): array
     {
         return [
-            'A' => 30,   // lebarkan kolom Product Name
-            'B' => 15,   // Stock Start
-            'C' => 15,   // Stok Masuk
-            'D' => 15,   // Stok Keluar
-            'E' => 15,   // Stock End
+            'A' => 30,
+            'B' => 15,
+            'C' => 15,
+            'D' => 15,
+            'E' => 15,
         ];
     }
 }

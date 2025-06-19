@@ -182,6 +182,7 @@
           </div>
         </div>
         <div class="self-center">
+          <label for="mov-end" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"></label>
           <button id="btn-refresh-mov" class="px-4 py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-md hover:bg-indigo-700 dark:hover:bg-indigo-400">
             Terapkan
           </button>

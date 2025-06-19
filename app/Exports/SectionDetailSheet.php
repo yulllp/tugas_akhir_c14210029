@@ -9,10 +9,11 @@ use App\Models\DetailStokOpname;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
-class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle
+class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle, ShouldAutoSize
 {
     protected $start;
     protected $end;

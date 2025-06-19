@@ -38,13 +38,13 @@ class StockFlowController extends Controller
 
         // 2. Urutkan dan ambil sesuai limit
         $sorted = $sold->sortDesc()
-            ->take($limit === 'all' ? $sold->count() : (int)$limit);
+            ->take($limit === 'all' ? $sold->count() : (int) $limit);
 
         $products = Product::whereIn('id', $sorted->keys())
             ->pluck('name', 'id');
 
         $chartData = $sorted->map(fn($qtyTerjual, $productId) => [
-            'name'     => $products[$productId] ?? 'Unknown',
+            'name' => $products[$productId] ?? 'Unknown',
             'net_sold' => $qtyTerjual,
         ])->values();
 
@@ -55,6 +55,7 @@ class StockFlowController extends Controller
     {
         try {
             // 1. Ambil rentang tanggal
+            $range = $request->input('range', 'all_time');
             $dateRange = $this->getDateRange($request);
             $productId = $request->input('product_id');
             if (!$productId) {
@@ -62,7 +63,7 @@ class StockFlowController extends Controller
             }
 
             $startDate = Carbon::parse($dateRange['start'])->startOfDay();
-            $endDate   = Carbon::parse($dateRange['end'])->endOfDay();
+            $endDate = Carbon::parse($dateRange['end'])->endOfDay();
 
             // ------------------------------------------
             // 2. Hitung STOCK BEFORE (sebelum $startDate)
@@ -168,6 +169,23 @@ class StockFlowController extends Controller
 
             $stockLast = $stockBefore + $stockChange;
 
+            if ($range === 'all_time') {
+                return response()->json([
+                    'stock_before' => $stockBefore,
+                    'stock_change' => $stockChange,
+                    'stock_last' => $stockLast,
+                    'movements' => [
+                        [
+                            // This single “movement” will become one stacked bar
+                            'type' => 'Sepanjang Waktu',
+                            'qty' => $stockChange,
+                            'date' => 'Sepanjang Waktu',
+                            'description' => 'Total pergerakan stok sejak awal'
+                        ]
+                    ],
+                ]);
+            }
+
             // -------------------------------------------------
             // 4. Ambil DETAIL MOVEMENTS (hanya aktivitas di rentang)
             // -------------------------------------------------
@@ -187,12 +205,12 @@ class StockFlowController extends Controller
                 )
                 ->get()
                 ->map(fn($item) => [
-                    'type'     => 'Penjualan',
-                    'qty'      => -$item->qty,
+                    'type' => 'Penjualan',
+                    'qty' => -$item->qty,
                     // simpan Carbon instan agar mudah sortir
                     'dateTime' => Carbon::parse($item->transaction->transaction_at),
                     // untuk ditampilkan ke front‐end
-                    'date'     => Carbon::parse($item->transaction->transaction_at)->format('d-m-Y H:i'),
+                    'date' => Carbon::parse($item->transaction->transaction_at)->format('d-m-Y H:i'),
                     'description' => 'Penjualan #' . $item->transaction->id,
                 ]);
             $allMovements = $allMovements->merge($transactions);
@@ -207,10 +225,10 @@ class StockFlowController extends Controller
                 )
                 ->get()
                 ->map(fn($item) => [
-                    'type'     => 'Pembelian',
-                    'qty'      => $item->qty,
+                    'type' => 'Pembelian',
+                    'qty' => $item->qty,
                     'dateTime' => Carbon::parse($item->purchase->entryDate),
-                    'date'     => Carbon::parse($item->purchase->entryDate)->format('d-m-Y H:i'),
+                    'date' => Carbon::parse($item->purchase->entryDate)->format('d-m-Y H:i'),
                     'description' => 'Pembelian #' . $item->purchase->id,
                 ]);
             $allMovements = $allMovements->merge($purchases);
@@ -224,27 +242,27 @@ class StockFlowController extends Controller
                 if ($isCustomer) {
                     if ($item->condition === 'good') {
                         return [
-                            'type'     => 'Retur Customer (Baik)',
-                            'qty'      => $item->qty,
+                            'type' => 'Retur Customer (Baik)',
+                            'qty' => $item->qty,
                             'dateTime' => $dt,
-                            'date'     => $formatted,
+                            'date' => $formatted,
                             'description' => 'Retur #' . $item->retur->id . ' (Baik)',
                         ];
                     }
                     // Retur customer rusak dianggap qty = 0
                     return [
-                        'type'     => 'Retur Customer (Rusak)',
-                        'qty'      => 0,
+                        'type' => 'Retur Customer (Rusak)',
+                        'qty' => 0,
                         'dateTime' => $dt,
-                        'date'     => $formatted,
+                        'date' => $formatted,
                         'description' => 'Retur #' . $item->retur->id . ' (Rusak)',
                     ];
                 } else {
                     return [
-                        'type'     => 'Retur Supplier',
-                        'qty'      => -$item->qty,
+                        'type' => 'Retur Supplier',
+                        'qty' => -$item->qty,
                         'dateTime' => $dt,
-                        'date'     => $formatted,
+                        'date' => $formatted,
                         'description' => 'Retur Supplier #' . $item->retur->id,
                     ];
                 }
@@ -261,10 +279,10 @@ class StockFlowController extends Controller
                 )
                 ->get()
                 ->map(fn($item) => [
-                    'type'     => 'Stok Opname',
-                    'qty'      => $item->difference,
+                    'type' => 'Stok Opname',
+                    'qty' => $item->difference,
                     'dateTime' => Carbon::parse($item->schedule->finish_at),
-                    'date'     => Carbon::parse($item->schedule->finish_at)->format('d-m-Y H:i'),
+                    'date' => Carbon::parse($item->schedule->finish_at)->format('d-m-Y H:i'),
                     'description' => 'Opname #' . $item->schedule->id,
                 ]);
             $allMovements = $allMovements->merge($opnames);
@@ -275,9 +293,9 @@ class StockFlowController extends Controller
                 ->values()
                 // hapus kolom dateTime sebelum kirim ke front‐end
                 ->map(fn($row) => [
-                    'type'        => $row['type'],
-                    'qty'         => $row['qty'],
-                    'date'        => $row['date'],
+                    'type' => $row['type'],
+                    'qty' => $row['qty'],
+                    'date' => $row['date'],
                     'description' => $row['description'],
                 ]);
 
@@ -287,12 +305,12 @@ class StockFlowController extends Controller
             return response()->json([
                 'stock_before' => $stockBefore,
                 'stock_change' => $stockChange,
-                'stock_last'   => $stockLast,
-                'movements'    => $movements,
+                'stock_last' => $stockLast,
+                'movements' => $movements,
             ]);
         } catch (Exception $e) {
             return response()->json([
-                'error'   => true,
+                'error' => true,
                 'message' => $e->getMessage(),
             ], 500);
         }
@@ -308,15 +326,15 @@ class StockFlowController extends Controller
         $customEnd = $request->input('end');
 
         return match ($type) {
-            'today'      => ['start' => now()->startOfDay(), 'end' => now()->endOfDay()],
-            'this_week'  => ['start' => now()->startOfWeek(), 'end' => now()->endOfWeek()],
+            'today' => ['start' => now()->startOfDay(), 'end' => now()->endOfDay()],
+            'this_week' => ['start' => now()->startOfWeek(), 'end' => now()->endOfWeek()],
             'this_month' => ['start' => now()->startOfMonth(), 'end' => now()->endOfMonth()],
-            'this_year'  => ['start' => now()->startOfYear(), 'end' => now()->endOfYear()],
-            'custom'     => [
+            'this_year' => ['start' => now()->startOfYear(), 'end' => now()->endOfYear()],
+            'custom' => [
                 'start' => Carbon::parse($customStart)->startOfDay(),
-                'end'   => Carbon::parse($customEnd)->endOfDay(),
+                'end' => Carbon::parse($customEnd)->endOfDay(),
             ],
-            default      => ['start' => Carbon::createFromDate(2000, 1, 1), 'end' => now()],
+            default => ['start' => Carbon::createFromDate(2000, 1, 1), 'end' => now()],
         };
     }
 
@@ -325,12 +343,12 @@ class StockFlowController extends Controller
         // 1. Validate input
         $request->validate([
             'start' => 'required|date',
-            'end'   => 'required|date|after_or_equal:start',
+            'end' => 'required|date|after_or_equal:start',
         ]);
 
         // 2. Parse to Carbon (with startOfDay/endOfDay)
         $start = Carbon::parse($request->input('start'))->startOfDay();
-        $end   = Carbon::parse($request->input('end'))->endOfDay();
+        $end = Carbon::parse($request->input('end'))->endOfDay();
 
         // 3. Build filename using d-m-Y
         $filename = sprintf(
