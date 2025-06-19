@@ -35,7 +35,7 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
         $rows[] = [];
 
         // 3) Headings
-        $rows[] = ['Product Name', 'Stok Awal', 'Stok Masuk', 'Stok Keluar', 'Stok Akhir'];
+        $rows[] = ['Nama Produk', 'Stok Awal', 'Stok Masuk', 'Stok Keluar', 'Stok Akhir'];
 
         // 4) Data rows
         $products = Product::where('created_at', '<=', $this->end)->get();
@@ -137,7 +137,10 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
                 $stokKeluar,
                 $stockEnd,
             ];
+
         }
+
+        dd($rows);
 
         return $rows;
     }
