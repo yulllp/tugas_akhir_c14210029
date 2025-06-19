@@ -131,6 +131,7 @@ class SectionSummarySheet implements FromArray, WithTitle, WithColumnWidths
             $stockEnd = $stockStart + $stokMasuk - $stokKeluar;
 
             $rows[] = [
+                $p->name,
                 (string) $stockStart,
                 (string) $stokMasuk,
                 (string) $stokKeluar,
