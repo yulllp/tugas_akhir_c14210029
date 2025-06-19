@@ -53,8 +53,8 @@ class ReturController extends Controller
     {
         $request->validate([
             'transaction_id' => 'required|exists:transactions,id',
-            'return_type'    => 'required|in:customer',
-            'items'          => 'required|array|min:1',
+            'return_type' => 'required|in:customer',
+            'items' => 'required|array|min:1',
         ]);
 
         // DB::beginTransaction();
@@ -63,19 +63,19 @@ class ReturController extends Controller
 
             $retur = Retur::create([
                 'transaction_id' => $transaction->id,
-                'return_date'    => Carbon::now(),
-                'description'    => $request->description,
-                'return_type'    => 'customer',
-                'user_id'        => Auth::id(),
-                'refund_amount'  => 0,
+                'return_date' => Carbon::now(),
+                'description' => $request->description,
+                'return_type' => 'customer',
+                'user_id' => Auth::id(),
+                'refund_amount' => 0,
             ]);
 
             $thisReturnNominal = 0;
 
             foreach ($request->items as $detail_id => $data) {
-                $detail    = DetailTransaction::findOrFail($detail_id);
+                $detail = DetailTransaction::findOrFail($detail_id);
                 $returnQty = intval($data['return_quantity'] ?? 0);
-                $maxQty    = $detail->qty - $detail->returnedQty();
+                $maxQty = $detail->qty - $detail->returnedQty();
 
                 if ($returnQty <= 0) {
                     continue;
@@ -84,20 +84,20 @@ class ReturController extends Controller
                     throw new \Exception("Qty retur untuk produk {$detail->product->name} melebihi sisa yang bisa diretur.");
                 }
 
-                $price    = $detail->productPrice->id;
-                $disc     = intval($data['disc'] ?? 0);
+                $price = $detail->productPrice->id;
+                $disc = intval($data['disc'] ?? 0);
                 $subtotal = $returnQty * ($detail->productPrice->sellPrice - $disc);
 
                 ReturItem::create([
-                    'retur_id'         => $retur->id,
-                    'product_id'       => $data['product_id'],
-                    'condition'        => $data['condition'],
-                    'note'             => $data['note'] ?? null,
-                    'qty'              => $returnQty,
+                    'retur_id' => $retur->id,
+                    'product_id' => $data['product_id'],
+                    'condition' => $data['condition'],
+                    'note' => $data['note'] ?? null,
+                    'qty' => $returnQty,
                     'product_price_id' => $price,
-                    'buy_price'        => null,
-                    'disc'             => $disc,
-                    'subtotal'         => $subtotal,
+                    'buy_price' => null,
+                    'disc' => $disc,
+                    'subtotal' => $subtotal,
                 ]);
 
                 $thisReturnNominal += $subtotal;
@@ -118,9 +118,9 @@ class ReturController extends Controller
             $newTotalReturNominal = $previousReturNominal + $thisReturnNominal;
             $effectiveTotalAfterReturn = $transaction->total - $newTotalReturNominal;
 
-            $initialPaid    = $transaction->prePaid;
+            $initialPaid = $transaction->prePaid;
             $creditPaidSoFar = $transaction->creditPayment()->sum('payment_total');
-            $alreadyPaid     = $initialPaid + $creditPaidSoFar;
+            $alreadyPaid = $initialPaid + $creditPaidSoFar;
 
             $refundAmount = 0;
             if ($alreadyPaid > $effectiveTotalAfterReturn) {
@@ -130,18 +130,23 @@ class ReturController extends Controller
             $retur->refund_amount = $refundAmount;
             $retur->save();
 
+            if ($effectiveTotalAfterReturn <= 0) {
+                $transaction->status = 'paid';
+                $transaction->save();
+            }
+
             // DB::commit();
 
             activity('retur')
                 ->performedOn($retur)
                 ->causedBy(Auth::user())
                 ->withProperties([
-                    'id_retur'      => $retur->id,
-                    'tipe'          => 'customer',
+                    'id_retur' => $retur->id,
+                    'tipe' => 'customer',
                     'transaction_id' => $retur->transaction_id,
-                    'jumlah_item'   => $retur->items->sum('qty'),
-                    'total_retur'   => $retur->items->sum('subtotal'),
-                    'refund'        => $retur->refund_amount,
+                    'jumlah_item' => $retur->items->sum('qty'),
+                    'total_retur' => $retur->items->sum('subtotal'),
+                    'refund' => $retur->refund_amount,
                 ])
                 ->log("Retur customer #{$retur->id} berhasil dibuat");
 
@@ -158,7 +163,7 @@ class ReturController extends Controller
         $request->validate([
             'purchase_id' => 'required|exists:purchases,id',
             'return_type' => 'required|in:supplier',
-            'items'       => 'required|array|min:1',
+            'items' => 'required|array|min:1',
         ]);
 
         // DB::beginTransaction();
@@ -166,20 +171,20 @@ class ReturController extends Controller
             $purchase = Purchase::with('productPurchase', 'returs.items')->findOrFail($request->purchase_id);
 
             $retur = Retur::create([
-                'purchase_id'   => $purchase->id,
-                'return_date'   => Carbon::now(),
-                'description'   => $request->description,
-                'return_type'   => 'supplier',
-                'user_id'       => Auth::id(),
+                'purchase_id' => $purchase->id,
+                'return_date' => Carbon::now(),
+                'description' => $request->description,
+                'return_type' => 'supplier',
+                'user_id' => Auth::id(),
                 'refund_amount' => 0,
             ]);
 
 
             $thisReturnNominal = 0;
             foreach ($request->items as $detail_id => $data) {
-                $detail    = ProductPurchase::findOrFail($detail_id);
+                $detail = ProductPurchase::findOrFail($detail_id);
                 $returnQty = intval($data['return_quantity'] ?? 0);
-                $maxQty    = $detail->qty - $detail->returnedQty();
+                $maxQty = $detail->qty - $detail->returnedQty();
 
                 if ($returnQty <= 0) {
                     continue;
@@ -188,10 +193,10 @@ class ReturController extends Controller
                     throw new \Exception("Qty retur untuk produk {$detail->product->name} melebihi sisa yang bisa diretur.");
                 }
 
-                $price      = $detail->buyPrice;
-                $productId  = $data['product_id'];
-                $condition  = $data['condition'] ?? 'good';
-                $subtotal   = $returnQty * $price;
+                $price = $detail->buyPrice;
+                $productId = $data['product_id'];
+                $condition = $data['condition'] ?? 'good';
+                $subtotal = $returnQty * $price;
 
                 $product = Product::findOrFail($productId);
                 if ($condition === 'good' && $product->totalStok < $returnQty) {
@@ -199,15 +204,15 @@ class ReturController extends Controller
                 }
 
                 ReturItem::create([
-                    'retur_id'       => $retur->id,
-                    'product_id'     => $productId,
-                    'condition'      => $condition,
-                    'note'           => $data['note'] ?? null,
-                    'qty'            => $returnQty,
+                    'retur_id' => $retur->id,
+                    'product_id' => $productId,
+                    'condition' => $condition,
+                    'note' => $data['note'] ?? null,
+                    'qty' => $returnQty,
                     'product_price_id' => null,
-                    'buy_price'      => $price,
-                    'disc'           => 0,
-                    'subtotal'       => $subtotal,
+                    'buy_price' => $price,
+                    'disc' => 0,
+                    'subtotal' => $subtotal,
                 ]);
 
                 $thisReturnNominal += $subtotal;
@@ -225,12 +230,12 @@ class ReturController extends Controller
                 ->flatMap(fn($r) => $r->items)
                 ->sum('subtotal');
 
-            $newTotalReturNominal      = $previousReturNominal + $thisReturnNominal;
+            $newTotalReturNominal = $previousReturNominal + $thisReturnNominal;
             $effectiveTotalAfterReturn = $purchase->total - $newTotalReturNominal;
 
-            $initialPaid     = $purchase->prePaid;
+            $initialPaid = $purchase->prePaid;
             $creditPaidSoFar = $purchase->creditPurchase()->sum('payment_total');
-            $alreadyPaid     = $initialPaid + $creditPaidSoFar;
+            $alreadyPaid = $initialPaid + $creditPaidSoFar;
 
             $refundAmount = 0;
             if ($alreadyPaid > $effectiveTotalAfterReturn) {
@@ -240,18 +245,23 @@ class ReturController extends Controller
             $retur->refund_amount = $refundAmount;
             $retur->save();
 
+            if ($effectiveTotalAfterReturn <= 0) {
+                $purchase->status = 'paid';
+                $purchase->save();
+            }
+
             // DB::commit();
 
             activity('retur')
                 ->performedOn($retur)
                 ->causedBy(Auth::user())
                 ->withProperties([
-                    'id_retur'      => $retur->id,
-                    'tipe'          => 'supplier',
-                    'purchase_id'   => $retur->purchase_id,
-                    'jumlah_item'   => $retur->items->sum('qty'),
-                    'total_retur'   => $retur->items->sum('subtotal'),
-                    'refund'        => $retur->refund_amount,
+                    'id_retur' => $retur->id,
+                    'tipe' => 'supplier',
+                    'purchase_id' => $retur->purchase_id,
+                    'jumlah_item' => $retur->items->sum('qty'),
+                    'total_retur' => $retur->items->sum('subtotal'),
+                    'refund' => $retur->refund_amount,
                 ])
                 ->log("Retur supplier #{$retur->id} berhasil dibuat");
 
