@@ -170,19 +170,47 @@ class StockFlowController extends Controller
             $stockLast = $stockBefore + $stockChange;
 
             if ($range === 'all_time') {
+                // Build one “bar” with one segment per movement type:
+                $aggregated = [
+                    [
+                        'type' => 'Penjualan',
+                        'qty' => $impactTransInRange,
+                        'date' => 'Sepanjang Waktu',
+                        'description' => 'Total Penjualan sejak awal',
+                    ],
+                    [
+                        'type' => 'Pembelian',
+                        'qty' => $impactPurchInRange,
+                        'date' => 'Sepanjang Waktu',
+                        'description' => 'Total Pembelian sejak awal',
+                    ],
+                    // Retur Customer (hanya yang good; rusak qty = 0 so you can omit if you like)
+                    [
+                        'type' => 'Retur Customer (Baik)',
+                        'qty' => $impactReturInRange > 0 ? $impactReturInRange : 0,
+                        'date' => 'Sepanjang Waktu',
+                        'description' => 'Total Retur Customer Baik sejak awal',
+                    ],
+                    // Retur Supplier (negative)
+                    [
+                        'type' => 'Retur Supplier',
+                        'qty' => $impactReturInRange < 0 ? $impactReturInRange : 0,
+                        'date' => 'Sepanjang Waktu',
+                        'description' => 'Total Retur Supplier sejak awal',
+                    ],
+                    [
+                        'type' => 'Stok Opname',
+                        'qty' => $impactOpnameInRange,
+                        'date' => 'Sepanjang Waktu',
+                        'description' => 'Total Penyesuaian Stok (Opname) sejak awal',
+                    ],
+                ];
+
                 return response()->json([
                     'stock_before' => $stockBefore,
                     'stock_change' => $stockChange,
                     'stock_last' => $stockLast,
-                    'movements' => [
-                        [
-                            // This single “movement” will become one stacked bar
-                            'type' => 'Sepanjang Waktu',
-                            'qty' => $stockChange,
-                            'date' => 'Sepanjang Waktu',
-                            'description' => 'Total pergerakan stok sejak awal'
-                        ]
-                    ],
+                    'movements' => $aggregated,
                 ]);
             }
 
