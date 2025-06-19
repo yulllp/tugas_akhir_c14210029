@@ -192,75 +192,92 @@ class TransactionController extends Controller
         }
 
         try {
-            // Ambil item dari temp_transaction user saat ini
-            $tempItems = TempTransaction::where('user_id', Auth::id())->get();
+            DB::transaction(function () use ($final) {
+                $userId = Auth::id();
 
-            if ($tempItems->isEmpty()) {
-                throw new \Exception('Tidak ada item dalam transaksi.');
-            }
+                // Lock and retrieve temp items for this user
+                $tempItems = TempTransaction::where('user_id', $userId)
+                    ->lockForUpdate()
+                    ->get();
 
-            // Validate stock first
-            foreach ($tempItems as $item) {
-                $product = Product::lockForUpdate()->find($item->product_id);
-                if (!$product || $product->totalStok < $item->qty) {
-                    throw new \Exception("Stok tidak mencukupi untuk produk: {$product->name}");
+                if ($tempItems->isEmpty()) {
+                    throw new \Exception('Tidak ada item dalam transaksi.');
                 }
-            }
 
-            $transaction = Transaction::create([
-                'user_id' => Auth::id(),
-                'customer_id' => $final['customer_id'] ?? null,
-                'transaction_at' => now(),
-                'total' => $final['total'],
-                'prePaid' => $final['paid'],
-                'status' => $final['credit'] ? 'unpaid' : 'paid',
-            ]);
+                // Gather product IDs to preload and lock
+                $productIds = $tempItems->pluck('product_id')->unique()->toArray();
+                $products = Product::whereIn('id', $productIds)
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
 
-            foreach ($tempItems as $item) {
-                $product = Product::lockForUpdate()->find($item->product_id);
-                $productPrice = ProductPrice::where('product_id', $item->product_id)
-                    ->latest('created_at')
-                    ->first();
+                // Validate stock
+                foreach ($tempItems as $item) {
+                    $product = $products->get($item->product_id);
+                    if (!$product || $product->totalStok < $item->qty) {
+                        throw new \Exception("Stok tidak mencukupi untuk produk: {$product->name}");
+                    }
+                }
 
-                DetailTransaction::create([
-                    'transaction_id' => $transaction->id,
-                    'product_id' => $item->product_id,
-                    'product_price_id' => $productPrice?->id,
-                    'qty' => $item->qty,
-                    'discount' => $item->discount,
-                    'subtotal' => $item->subtotal,
+                // Create transaction header
+                $transaction = Transaction::create([
+                    'user_id' => $userId,
+                    'customer_id' => $final['customer_id'] ?? null,
+                    'transaction_at' => now(),
+                    'total' => $final['total'],
+                    'prePaid' => $final['paid'],
+                    'status' => $final['credit'] ? 'unpaid' : 'paid',
                 ]);
 
-                $product->decrement('totalStok', $item->qty);
-                $product->refresh();
+                // Process each item
+                foreach ($tempItems as $item) {
+                    $product = $products->get($item->product_id);
 
-                if ($product->totalStok < $product->minStok) {
-                    $recipients = User::where('role', 'owner')->get();
-                    Notification::send($recipients, new LowStockNotification($product));
+                    $productPrice = ProductPrice::where('product_id', $item->product_id)
+                        ->latest('created_at')
+                        ->first();
+
+                    DetailTransaction::create([
+                        'transaction_id' => $transaction->id,
+                        'product_id' => $item->product_id,
+                        'product_price_id' => $productPrice?->id,
+                        'qty' => $item->qty,
+                        'discount' => $item->discount,
+                        'subtotal' => $item->subtotal,
+                    ]);
+
+                    // Decrement stock
+                    $product->decrement('totalStok', $item->qty);
+
+                    if ($product->fresh()->totalStok < $product->minStok) {
+                        $owners = User::where('role', 'owner')->get();
+                        Notification::send($owners, new LowStockNotification($product));
+                    }
                 }
-            }
 
-            TempTransaction::where('user_id', Auth::id())->delete();
+                // Clear temp items
+                TempTransaction::where('user_id', $userId)->delete();
 
-            activity('transaksi')
-                ->performedOn($transaction)
-                ->causedBy(Auth::user())
-                ->withProperties([
-                    'id' => $transaction->id,
-                    'total' => $transaction->total,
-                    'dibayar' => $transaction->prePaid,
-                    'status' => $transaction->status,
-                    'pelanggan_id' => $transaction->customer_id,
-                ])
-                ->log("Transaksi #{$transaction->id} berhasil dibuat");
+                activity('transaksi')
+                    ->performedOn($transaction)
+                    ->causedBy(Auth::user())
+                    ->withProperties([
+                        'id' => $transaction->id,
+                        'total' => $transaction->total,
+                        'dibayar' => $transaction->prePaid,
+                        'status' => $transaction->status,
+                        'pelanggan_id' => $transaction->customer_id,
+                    ])
+                    ->log("Transaksi #{$transaction->id} berhasil dibuat");
+            });
 
             return redirect()
                 ->route('transactions.create')
                 ->with('success', 'Transaksi berhasil')
-                ->with('transaction_id', $transaction->id);
+                ->with('transaction_id', isset($transaction) ? $transaction->id : null);
+
         } catch (\Exception $e) {
-            DB::rollBack();
-            \Log::error('Transaction error: ' . $e->getMessage());
+            Log::error('Transaction error: ' . $e->getMessage());
 
             return redirect()
                 ->route('transactions.create')
