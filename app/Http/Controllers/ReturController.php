@@ -131,7 +131,6 @@ class ReturController extends Controller
             $retur->save();
 
             if ($alreadyPaid >= $effectiveTotalAfterReturn) {
-                dd('true');
                 $transaction->status = 'paid';
                 $transaction->save();
             }
