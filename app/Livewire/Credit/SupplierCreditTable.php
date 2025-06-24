@@ -15,12 +15,12 @@ class SupplierCreditTable extends Component
     // URL‐driven params so you can share via query string & keep state on back/refresh
     // exactly the same as CustomerCreditTable, just renamed to “supplier_id”
     #[Url(history: true)] public $search        = '';
-    #[Url(history: true)] public $sortField     = 'purchase_at';
+    #[Url(history: true)] public $sortField     = 'buyDate';
     #[Url(history: true)] public $sortDirection = 'desc';
     #[Url(history: true)] public $perPage       = 10;
 
     #[Url(history: true)]
-    public $sortBy = 'purchase_at';
+    public $sortBy = 'buyDate';
 
     #[Url(history: true)] public $supplier_id   = null;
 
