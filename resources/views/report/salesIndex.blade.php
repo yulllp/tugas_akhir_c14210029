@@ -273,7 +273,7 @@
       const chartOptions = {
         chart: {
           type: 'bar',
-          stacked: false,
+          stacked: true,
           height: 400,
           toolbar: {
             show: true
