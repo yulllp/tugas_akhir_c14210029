@@ -13,7 +13,7 @@ class ForecastController extends Controller
 {
     public function index(Request $request)
     {
-        // 1) Load all products for the dropdown
+        //Load all products for the dropdown
         $products = Product::orderBy('name')->get(['id', 'name']);
         $trainingResults = null;
         $realForecast = null;
@@ -29,7 +29,7 @@ class ForecastController extends Controller
                     'product_name' => $productName,
                 ];
             } else {
-                // 2) Anchor on product creation date
+                //Anchor on product creation date
                 $createdAt = Carbon::parse($product->created_at)->startOfDay();
                 $firstYear = (int) $createdAt->year;
                 // if created mid-year, skip that partial year:

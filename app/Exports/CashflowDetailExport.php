@@ -56,13 +56,9 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         } else {
             $this->rows[] = ['-- Tidak ada data transaksi --'];
         }
-        // two blanks before next section
         $this->rows[] = [''];
         $this->rows[] = [''];
 
-        //
-        // SECTION 2: CREDIT PAYMENTS on TRANSACTIONS (CASH-IN)
-        //
         $this->rows[] = ['PEMBAYARAN KREDIT TRANSAKSI (CASH-IN)'];
         if ($this->activityEnabled('transactions')) {
             $this->appendAllCreditPaymentsOnTransactions();
@@ -73,9 +69,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         $this->rows[] = [''];
         $this->rows[] = [''];
 
-        //
-        // SECTION 3: CUSTOMER RETURNS (CASH-OUT)
-        //
         $this->rows[] = ['RETUR PELANGGAN (CASH-OUT)'];
         if ($this->activityEnabled('transactions')) {
             $this->appendAllCustomerReturns();
@@ -86,9 +79,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         $this->rows[] = [''];
         $this->rows[] = [''];
 
-        //
-        // SECTION 4: PURCHASES (CASH-OUT)
-        //
         $this->rows[] = ['PEMBELIAN (CASH-OUT)'];
         if ($this->activityEnabled('purchases')) {
             $this->appendAllPurchases();
@@ -99,9 +89,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         $this->rows[] = [''];
         $this->rows[] = [''];
 
-        //
-        // SECTION 5: CREDIT PAYMENTS on PURCHASES (CASH-OUT)
-        //
         $this->rows[] = ['PEMBAYARAN KREDIT PEMBELIAN (CASH-OUT)'];
         if ($this->activityEnabled('purchases')) {
             $this->appendAllCreditPaymentsOnPurchases();
@@ -112,9 +99,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         $this->rows[] = [''];
         $this->rows[] = [''];
 
-        //
-        // SECTION 6: SUPPLIER RETURNS (CASH-IN)
-        //
         $this->rows[] = ['RETUR SUPPLIER (CASH-IN)'];
         if ($this->activityEnabled('purchases')) {
             $this->appendAllSupplierReturns();
@@ -140,9 +124,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         return in_array('all', $this->activities) || in_array($key, $this->activities);
     }
 
-    /**
-     * SECTION 1: List **all** transactions (each with its own item lines).
-     */
     protected function appendAllTransactions(): void
     {
         // Fetch each transaction header and items in one go
@@ -208,9 +189,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         }
     }
 
-    /**
-     * SECTION 2: List **all** credit payments tied to transactions.
-     */
     protected function appendAllCreditPaymentsOnTransactions(): void
     {
         $q = DB::table('credit_payments as cp')
@@ -252,9 +230,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         $this->rows[] = [''];
     }
 
-    /**
-     * SECTION 3: List **all** customer returns (return_type = 'customer').
-     */
     protected function appendAllCustomerReturns(): void
     {
         $q = DB::table('returs as r')
@@ -319,9 +294,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         }
     }
 
-    /**
-     * SECTION 4: List **all** purchases (cash‐out).
-     */
     protected function appendAllPurchases(): void
     {
         $q = DB::table('purchases as pu')
@@ -378,9 +350,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         }
     }
 
-    /**
-     * SECTION 5: List **all** credit payments on purchases.
-     */
     protected function appendAllCreditPaymentsOnPurchases(): void
     {
         $q = DB::table('credit_purchases as cp')
@@ -419,9 +388,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         $this->rows[] = [''];
     }
 
-    /**
-     * SECTION 6: List **all** supplier returns.
-     */
     protected function appendAllSupplierReturns(): void
     {
         $q = DB::table('returs as r')
@@ -607,7 +573,6 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
                 $sheet = $event->sheet->getDelegate();
                 $highestRow = $sheet->getHighestRow();
 
-                // Apply "#,##0" formatting to numeric columns (C, D, E, F, G)
                 foreach (['C', 'D', 'E', 'F', 'G'] as $col) {
                     $sheet
                         ->getStyle("{$col}1:{$col}{$highestRow}")

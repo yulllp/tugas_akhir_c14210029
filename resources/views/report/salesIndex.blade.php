@@ -171,9 +171,6 @@
     </div>
   </div>
 
-  <!-- ============================================
-       DATATABLE SECTION: Show entries + Table + Pagination
-       ============================================ -->
   <div class="mt-8">
     <!-- Rows-per-page selector -->
     <div class="flex items-center justify-between mb-2">
@@ -225,16 +222,12 @@
     </div>
   </div>
 
-  <!-- ============================
-       SCRIPTS (jQuery + Pagination Logic)
-       ============================ -->
   <script>
     // Global state for activities and pagination
     let activitiesData = []; // will hold the full array from AJAX
     let currentPage = 1;
     let rowsPerPage = parseInt($('#rowsPerPage').val());
 
-    // Utility: format number to IDR currency
     function formatCurrency(value) {
       return new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -243,7 +236,7 @@
       }).format(value);
     }
 
-    // Render the chart (same as before)
+
     function renderChart(data, groupBy) {
       const categories = data.map(d => d.period);
       const seriesNames = [
@@ -280,7 +273,7 @@
       const chartOptions = {
         chart: {
           type: 'bar',
-          stacked: true,
+          stacked: false,
           height: 400,
           toolbar: {
             show: true

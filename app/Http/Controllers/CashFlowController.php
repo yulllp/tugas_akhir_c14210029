@@ -39,7 +39,7 @@ class CashFlowController extends Controller
         $activities = collect();
 
         //
-        // 1) TRANSAKSI (CASH-IN; tidak lagi dikurangi kredit)
+        // TRANSAKSI (CASH-IN; tidak lagi dikurangi kredit)
         //
         if ($cashType !== 'out' && ($activity === 'transaction' || $activity === 'all')) {
             $transactions = DB::table('transactions')
@@ -75,7 +75,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 2) PEMBAYARAN KREDIT TRANSAKSI (CASH-IN)
+        // PEMBAYARAN KREDIT TRANSAKSI (CASH-IN)
         //
         if ($cashType !== 'out' && ($activity === 'transaction' || $activity === 'all')) {
             $credits = DB::table('credit_payments')
@@ -110,7 +110,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 3) PEMBELIAN (CASH-OUT; tidak lagi dikurangi kredit)
+        // PEMBELIAN (CASH-OUT; tidak lagi dikurangi kredit)
         //
         if ($cashType !== 'in' && ($activity === 'purchasing' || $activity === 'all')) {
             $purchases = DB::table('purchases')
@@ -145,7 +145,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 4) PELUNASAN KREDIT PEMBELIAN (CASH-OUT)
+        // PELUNASAN KREDIT PEMBELIAN (CASH-OUT)
         //
         if ($cashType !== 'in' && ($activity === 'purchasing' || $activity === 'all')) {
             $credits = DB::table('credit_purchases')
@@ -180,7 +180,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 5) RETUR PELANGGAN (CASH-OUT; gunakan refund_amount)
+        // RETUR PELANGGAN (CASH-OUT; gunakan refund_amount)
         //
         if ($cashType !== 'in' && ($activity === 'other' || $activity === 'all')) {
             $customerReturns = DB::table('returs')
@@ -216,7 +216,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 6) RETUR SUPPLIER (CASH-IN; gunakan refund_amount)
+        // RETUR SUPPLIER (CASH-IN; gunakan refund_amount)
         //
         if ($cashType !== 'out' && ($activity === 'other' || $activity === 'all')) {
             $supplierReturns = DB::table('returs')
@@ -252,7 +252,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 7) Siapkan array “data” untuk chart: tetap dikelompokkan per periode
+        // Siapkan array “data” untuk chart: tetap dikelompokkan per periode
         //
         if ($isSingleGroup) {
             $result = collect([
@@ -280,7 +280,7 @@ class CashFlowController extends Controller
         }
 
         //
-        // 8) Urutkan aktivitas berdasarkan datetime (timestamp)
+        // Urutkan aktivitas berdasarkan datetime (timestamp)
         //
         $activitiesSorted = $activities
             ->sortBy(fn($a) => Carbon::createFromFormat('d-m-Y H:i', $a['date'])->timestamp)

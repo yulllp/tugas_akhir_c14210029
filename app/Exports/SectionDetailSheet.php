@@ -28,7 +28,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle, Sho
     {
         $rows = new Collection();
 
-        // 1) Sales within range
+        // Sales within range
         $sales = DetailTransaction::with(['transaction', 'product'])
             ->whereHas('transaction', function ($q) {
                 $q->whereBetween('transaction_at', [$this->start, $this->end]);
@@ -44,7 +44,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle, Sho
             ]);
         }
 
-        // 2) Purchases within range
+        // Purchases within range
         $purchases = ProductPurchase::with(['purchase', 'product'])
             ->whereHas('purchase', function ($q) {
                 $q->whereBetween('entryDate', [$this->start, $this->end]);
@@ -60,7 +60,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle, Sho
             ]);
         }
 
-        // 3) Returns within range
+        // Returns within range
         $returs = ReturItem::with(['retur', 'product'])
             ->whereHas('retur', function ($q) {
                 $q->whereBetween('return_date', [$this->start, $this->end]);
@@ -100,7 +100,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle, Sho
             }
         }
 
-        // 4) Stock Opname within range
+        // Stock Opname within range
         $opnames = DetailStokOpname::with(['schedule', 'product'])
             ->whereHas('schedule', function ($q) {
                 $q->whereBetween('finish_at', [$this->start, $this->end]);
@@ -117,7 +117,7 @@ class SectionDetailSheet implements FromCollection, WithHeadings, WithTitle, Sho
             ]);
         }
 
-        // 5) Sort all rows by Date ascending
+        // Sort all rows by Date ascending
         $sorted = $rows->sortBy(function ($row) {
             // $row[0] is "Date" in d-m-Y; convert back to Carbon to sort properly
             return Carbon::createFromFormat('d-m-Y H:i', $row[0]);
