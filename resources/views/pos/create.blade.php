@@ -4,8 +4,7 @@
   <!-- 1) Make the overlay switch colors -->
   <div
     id="successModal"
-    class="fixed inset-0 bg-white/30 dark:bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
-  >
+    class="fixed inset-0 bg-white/30 dark:bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
     <!-- 2) Inner panel: white on light, gray-800 on dark; text likewise -->
     <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
       <h2 class="text-lg font-semibold mb-4 text-center">
@@ -15,14 +14,12 @@
         <button
           id="printButton"
           data-transaction-id="{{ session('transaction_id') }}"
-          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition"
-        >
+          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition">
           Cetak
         </button>
         <button
           onclick="document.getElementById('successModal').remove()"
-          class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded transition"
-        >
+          class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded transition">
           Batal
         </button>
       </div>
@@ -30,14 +27,38 @@
   </div>
 
   <script>
-    const printBtn = document.getElementById('printButton');
-    const latestTransactionId = parseInt(printBtn.dataset.transactionId, 10);
+    $(function() {
+        var printUrlTemplate = '{{ route("print.escpos", ["transaction" => ":id"]) }}';
+      $('#printButton').on('click', function() {
 
-    function printTransaction(id) {
-      window.open(`/print/${id}`, '_blank', 'width=400,height=600');
-    }
-    printBtn.addEventListener('click', function() {
-      printTransaction(latestTransactionId);
+        var $btn = $(this);
+        var id = $btn.data('transaction-id');
+
+        var url = printUrlTemplate.replace(':id', id);
+
+        $btn.prop('disabled', true).text('Mencetak…');
+
+        $.ajax({
+            url: url,
+            method: 'POST',
+            dataType: 'json',
+            headers: {
+              'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+          })
+          .done(function(json, textStatus, xhr) {
+            alert('Cetak berhasil!');
+          })
+          .fail(function(xhr, textStatus, errorThrown) {
+            var msg = xhr.responseJSON && xhr.responseJSON.message ?
+              xhr.responseJSON.message :
+              errorThrown;
+            alert('Error: ' + msg);
+          })
+          .always(function() {
+            $btn.prop('disabled', false).text('Cetak');
+          });
+      });
     });
   </script>
   @endif

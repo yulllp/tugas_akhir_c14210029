@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
+use Mike42\Escpos\Printer;
+use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
+use Mike42\Escpos\CapabilityProfile;
+use Mike42\Escpos\EscposImage;
 
 class TransactionController extends Controller
 {
@@ -274,25 +278,94 @@ class TransactionController extends Controller
         }
     }
 
-    public function print(Transaction $transaction)
+    public function print(Request $request, Transaction $transaction)
     {
+        // (Optional) Authorization: ensure user can print this
+        // $this->authorize('view', $transaction);
+
+        // Format your data
         $data = [
-            'code' => $transaction->id,
-            'date' => \Carbon\Carbon::parse($transaction->transaction_at)->format('d-m-Y H:i'),
+            'code'    => $transaction->id,
+            'date'    => $transaction->transaction_at->format('d-m-Y H:i'),
             'cashier' => $transaction->user->name,
-            'total' => number_format($transaction->total),
-            'paid' => number_format($transaction->prePaid),
-            'status' => $transaction->status,
-            'items' => $transaction->detailTransactions->map(fn($dt) => [
-                'name' => $dt->product->name,
-                'qty' => $dt->qty,
-                'price' => number_format($dt->productPrice->sellPrice ?? 0),
-                'disc' => number_format($dt->discount),
-                'subtotal' => number_format($dt->subtotal),
-            ]),
+            'status'  => strtoupper($transaction->status),
+            'total'   => $transaction->total,
+            'paid'    => $transaction->prePaid,
+            'items'   => $transaction->detailTransactions,
         ];
 
-        return view('print.receipt', compact('data'));
+        try {
+            // 1) Connector: adjust to your printer type/IP
+            // For a network printer on 192.168.1.100 port 9100:
+            $connector = new WindowsPrintConnector("POS-58");
+
+            // 2) (Optional) load capability profile if using graphics:
+            $profile = CapabilityProfile::load("default");
+
+            // 3) Printer instance
+            $printer = new Printer($connector, $profile);
+
+            // 4) Print header
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->selectPrintMode(Printer::MODE_DOUBLE_HEIGHT);
+            $printer->text("TOKO YAMDENA PLAZA\n");
+            $printer->selectPrintMode();
+            $printer->text("Jl. BHINEKA No. 5-6, SAUMLAKI\n");
+            $printer->feed();
+
+            // 5) Transaction meta
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
+            $printer->text("Kode   : {$data['code']}\n");
+            $printer->text("Tanggal: {$data['date']}\n");
+            $printer->text("Kasir  : {$data['cashier']}\n");
+            $printer->text("Status : {$data['status']}\n");
+            $printer->feed();
+
+            // 6) Items
+            foreach ($data['items'] as $item) {
+                $name = $item->product->name;
+                $qty  = $item->qty;
+                $price = $item->productPrice->sellPrice ?? 0;
+                $disc  = $item->discount;
+
+                $printer->text($name . "\n");
+                $printer->text(sprintf("  %dx Rp%s = Rp%s\n",
+                    $qty,
+                    number_format($price),
+                    number_format($qty * $price)
+                ));
+                if ($disc > 0) {
+                    $printer->text(sprintf("  Disc %dx Rp%s = -Rp%s\n",
+                        $qty,
+                        number_format($disc),
+                        number_format($qty * $disc)
+                    ));
+                }
+            }
+            $printer->feed();
+
+            // 7) Totals
+            $printer->setEmphasis(true);
+            $printer->text(sprintf("TOTAL Rp%s\n", number_format($data['total'])));
+            $printer->text(sprintf("BAYAR Rp%s\n",  number_format($data['paid'])));
+            $printer->setEmphasis(false);
+            $printer->feed(2);
+
+            // 8) Cut & drawer
+            $printer->cut();
+            $printer->pulse();   // open cash drawer
+
+            // 9) Close connection
+            $printer->close();
+
+            return response()->json(['message' => 'Printed successfully.']);
+
+        } catch (\Exception $e) {
+            Log::error("ESC/POS print error: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to print: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

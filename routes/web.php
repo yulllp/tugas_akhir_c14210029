@@ -17,6 +17,7 @@ use App\Http\Controllers\StokOpnameScheduleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
+use App\Models\Transaction;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -51,7 +52,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/transaction/temp-transaction', [TransactionController::class, 'storeTemp'])->name('transactions.temp.store');
     Route::get('/latest-products', [ProductController::class, 'getLatestProducts'])->name('get.products');
     Route::get('/get-customers', [CustomerController::class, 'getCustomer'])->name('get.customers');
-    Route::get('/print/{transaction}', [TransactionController::class, 'print'])->name('transactions.print');
+    // Route::get('/print/{transaction}', [TransactionController::class, 'print'])->name('transactions.print');
+    Route::post('/print-escpos/{transaction}', [TransactionController::class, 'print'])->name('print.escpos');
 
     Route::middleware(['auth', 'owner'])->group(function () {
         Route::post('/products/create', [ProductController::class, 'store'])->name('products.store');
