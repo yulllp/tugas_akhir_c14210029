@@ -124,6 +124,15 @@
 
     <div class="center">Terima kasih atas kunjungan Anda!</div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      window.print();
+    });
+    window.onafterprint = function() {
+      window.close();
+    };
+  </script>
 </body>
 
 </html>
