@@ -165,9 +165,7 @@ class TransactionController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
@@ -268,7 +266,6 @@ class TransactionController extends Controller
                 ->route('transactions.create')
                 ->with('success', 'Transaksi berhasil')
                 ->with('transaction_id', $transaction->id);
-
         } catch (\Exception $e) {
             Log::error('Transaction error: ' . $e->getMessage());
 
@@ -286,7 +283,8 @@ class TransactionController extends Controller
         // Format your data
         $data = [
             'code'    => $transaction->id,
-            'date'    => $transaction->transaction_at->format('d-m-Y H:i'),
+            'date'    => Carbon::parse($transaction->transaction_at)
+                ->format('d-m-Y H:i'),
             'cashier' => $transaction->user->name,
             'status'  => strtoupper($transaction->status),
             'total'   => $transaction->total,
@@ -294,9 +292,8 @@ class TransactionController extends Controller
             'items'   => $transaction->detailTransactions,
         ];
 
+
         try {
-            // 1) Connector: adjust to your printer type/IP
-            // For a network printer on 192.168.1.100 port 9100:
             $connector = new WindowsPrintConnector("POS-58");
 
             // 2) (Optional) load capability profile if using graphics:
@@ -329,13 +326,15 @@ class TransactionController extends Controller
                 $disc  = $item->discount;
 
                 $printer->text($name . "\n");
-                $printer->text(sprintf("  %dx Rp%s = Rp%s\n",
+                $printer->text(sprintf(
+                    "  %dx Rp%s = Rp%s\n",
                     $qty,
                     number_format($price),
                     number_format($qty * $price)
                 ));
                 if ($disc > 0) {
-                    $printer->text(sprintf("  Disc %dx Rp%s = -Rp%s\n",
+                    $printer->text(sprintf(
+                        "  Disc %dx Rp%s = -Rp%s\n",
                         $qty,
                         number_format($disc),
                         number_format($qty * $disc)
@@ -359,7 +358,6 @@ class TransactionController extends Controller
             $printer->close();
 
             return response()->json(['message' => 'Printed successfully.']);
-
         } catch (\Exception $e) {
             Log::error("ESC/POS print error: " . $e->getMessage());
             return response()->json([
@@ -414,8 +412,7 @@ class TransactionController extends Controller
             ])
             ->log("Transaksi #{$transaction->id} berhasil diperbarui");
 
-        return redirect()->route('transactions.show', $transaction->id)->with('success', 'Trasaksi berhasil diubah');
-        ;
+        return redirect()->route('transactions.show', $transaction->id)->with('success', 'Trasaksi berhasil diubah');;
     }
 
     /**

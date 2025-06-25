@@ -28,7 +28,7 @@
 
   <script>
     $(function() {
-        var printUrlTemplate = '{{ route("print.escpos", ["transaction" => ":id"]) }}';
+      var printUrlTemplate = '{{ route("print.escpos", ["transaction" => ":id"]) }}';
       $('#printButton').on('click', function() {
 
         var $btn = $(this);
