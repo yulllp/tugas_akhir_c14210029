@@ -28,7 +28,7 @@
           id="activity"
           class="rounded-lg border min-w-[10rem] border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-sm shadow-sm focus:ring focus:ring-blue-200 dark:focus:ring-blue-800">
           <option value="all">Semua Aktivitas</option>
-          <option value="transaction">Transaksi</option>
+          <option value="transaction">Penjualan</option>
           <option value="purchasing">Pembelian</option>
           <option value="other">Aktivitas Lain</option>
         </select>
@@ -130,7 +130,7 @@
               value="transactions"
               checked
               class="mr-2" />
-            Transaksi
+            Penjualan
           </label>
           <label class="block">
             <input
@@ -302,7 +302,7 @@
         },
         colors: ['#4CAF50', '#2E7D32', '#F44336', '#C62828', '#FF9800', '#6A1B9A'],
         series: [{
-            name: 'Transaksi Tunai',
+            name: 'Penjualan Tunai',
             data: cashInSeries.transactions
           },
           {

@@ -44,7 +44,7 @@
         <ul class="mt-1.5 list-disc list-inside">
           <li>Nama supplier tidak boleh sama</li>
           <li>Periksa kembali daftar nama supplier agar menghindari data supplier yang berlebihan</li>
-          <li>Data supplier akan digunakan untuk memonitor transaksi dan utang supplier</li>
+          <li>Data supplier akan digunakan untuk memonitor penjualan dan utang supplier</li>
         </ul>
       </div>
     </div>

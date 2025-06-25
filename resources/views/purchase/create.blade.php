@@ -436,7 +436,7 @@
         },
         error: function(xhr) {
           console.error(xhr);
-          alert('Gagal memuat data transaksi sementara.');
+          alert('Gagal memuat data penjualan sementara.');
         },
         complete: function() {
           $('#temp-loading').addClass('hidden');
@@ -711,7 +711,7 @@
         toggleActionButtons(false);
 
         if (tempItems.length === 0) {
-          alert('Tidak ada item dalam transaksi.');
+          alert('Tidak ada item dalam penjualan.');
           resetSummaryButton();
           toggleActionButtons(true);
           return;
@@ -787,7 +787,7 @@
         toggleActionButtons(true);
 
       }).fail(function() {
-        alert('Gagal mengambil data transaksi sementara.');
+        alert('Gagal mengambil data penjualan sementara.');
         resetSummaryButton();
         toggleActionButtons(true);
       });

@@ -50,7 +50,7 @@ class CustomerCreditTable extends Component
         // 1) Ambil semua customer untuk dropdown
         $customers = Customer::orderBy('name')->get(['id', 'name']);
 
-        // 2) Buat query dasar: transaksi 'unpaid'
+        // 2) Buat query dasar: penjualan 'unpaid'
         $baseQuery = Transaction::with(['customer', 'returs.items', 'creditPayment'])
             ->where('status', 'unpaid');
 

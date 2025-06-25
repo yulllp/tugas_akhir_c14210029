@@ -81,7 +81,7 @@
                                         class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg
                        focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5
                        dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-                                        placeholder="Cari ID transaksi atau nama pelanggan" />
+                                        placeholder="Cari ID penjualan atau nama pelanggan" />
                                 </div>
                             </div>
 
@@ -114,7 +114,7 @@
                                     ID
                                 </th>
                                 <th wire:click="setSortBy('id')" class="px-4 py-3 cursor-pointer">
-                                    Transaksi ID
+                                    Penjualan ID
                                 </th>
                                 <th class="px-4 py-3">Pelanggan</th>
                                 <th class="px-4 py-3">Total Tagihan</th>
@@ -205,7 +205,7 @@
                                     @empty
                                     <tr>
                                         <td colspan="9" class="text-center px-4 py-6 text-gray-500 dark:text-gray-400">
-                                            Tidak ada transaksi kredit (unpaid) untuk pelanggan ini.
+                                            Tidak ada penjualan kredit (unpaid) untuk pelanggan ini.
                                         </td>
                                     </tr>
                                     @endforelse

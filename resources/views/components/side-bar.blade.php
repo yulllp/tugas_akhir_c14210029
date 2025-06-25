@@ -88,7 +88,7 @@
                         <a href="{{ route('transactions.create') }}" class="flex items-center w-full p-2 text-gray-900 transition duration-75 rounded-lg pl-11 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">POS</a>
                     </li>
                     <li>
-                        <a href="{{ route('transactions.index') }}" class="flex items-center w-full p-2 text-gray-900 transition duration-75 rounded-lg pl-11 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">Transaksi</a>
+                        <a href="{{ route('transactions.index') }}" class="flex items-center w-full p-2 text-gray-900 transition duration-75 rounded-lg pl-11 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">Penjualan</a>
                     </li>
                     @if(Auth::check() && Auth::user()->role === 'owner')
                     <li>

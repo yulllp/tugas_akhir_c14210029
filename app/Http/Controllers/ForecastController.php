@@ -53,7 +53,7 @@ class ForecastController extends Controller
                 // no transactions at all?
                 if (!$lastRow->last_year) {
                     $trainingResults = [
-                        'error' => 'Produk belum memiliki transaksi sama sekali.',
+                        'error' => 'Produk belum memiliki penjualan sama sekali.',
                         'product_name' => $productName,
                     ];
                 }

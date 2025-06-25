@@ -69,7 +69,7 @@ class StockFlowController extends Controller
             // 2. Hitung STOCK BEFORE (sebelum $startDate)
             // ------------------------------------------
 
-            // 2.1. Transaksi (keluar → qty negatif)
+            // 2.1. Penjualan (keluar → qty negatif)
             $sumTransBefore = DetailTransaction::where('product_id', $productId)
                 ->whereHas('transaction', fn($q) => $q->where('transaction_at', '<', $startDate))
                 ->sum('qty');
@@ -113,7 +113,7 @@ class StockFlowController extends Controller
             // 3. Hitung STOCK CHANGE (selama $startDate – $endDate)
             // -------------------------------------------------
 
-            // 3.1. Transaksi dalam rentang (qty negatif)
+            // 3.1. Penjualan dalam rentang (qty negatif)
             $sumTransInRange = DetailTransaction::where('product_id', $productId)
                 ->whereHas(
                     'transaction',
@@ -223,7 +223,7 @@ class StockFlowController extends Controller
 
             $allMovements = collect();
 
-            // 4.1. Transaksi → keluar stok
+            // 4.1. Penjualan → keluar stok
             $transactions = DetailTransaction::with('transaction')
                 ->where('product_id', $productId)
                 ->whereHas(

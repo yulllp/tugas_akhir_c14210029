@@ -13,7 +13,7 @@
           <label
             for="transaction_at"
             class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-            Tanggal Transaksi
+            Tanggal Penjualan
           </label>
           <input
             type="text"
@@ -139,7 +139,7 @@
             @empty
             <tr>
               <td colspan="5" class="text-center px-4 py-3">
-                Tidak ada detail transaksi.
+                Tidak ada detail penjualan.
               </td>
             </tr>
             @endforelse

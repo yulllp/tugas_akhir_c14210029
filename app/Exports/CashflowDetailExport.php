@@ -54,7 +54,7 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         if ($this->activityEnabled('transactions')) {
             $this->appendAllTransactions();
         } else {
-            $this->rows[] = ['-- Tidak ada data transaksi --'];
+            $this->rows[] = ['-- Tidak ada data penjualan --'];
         }
         $this->rows[] = [''];
         $this->rows[] = [''];
@@ -63,7 +63,7 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         if ($this->activityEnabled('transactions')) {
             $this->appendAllCreditPaymentsOnTransactions();
         } else {
-            $this->rows[] = ['-- Tidak ada data pembayaran kredit transaksi --'];
+            $this->rows[] = ['-- Tidak ada data pembayaran kredit penjualan --'];
         }
         // two blanks before next section
         $this->rows[] = [''];
@@ -152,7 +152,7 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
             ->groupBy('transaction_id');
 
         if ($allRows->isEmpty()) {
-            $this->rows[] = ['-- Tidak ada data transaksi di periode ini --'];
+            $this->rows[] = ['-- Tidak ada data penjualan di periode ini --'];
             return;
         }
 
@@ -163,7 +163,7 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
             // Header for this transaction
             $this->rows[] = [
                 'Tanggal: ' . $dateFormatted
-                    . ' | Kode Transaksi: ' . $txId
+                    . ' | Kode Penjualan: ' . $txId
                     . ' | Prepaid: ' . $first->prePaid
             ];
 
@@ -209,12 +209,12 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
             ->get();
 
         if ($credits->isEmpty()) {
-            $this->rows[] = ['-- Tidak ada pembayaran kredit transaksi di periode ini --'];
+            $this->rows[] = ['-- Tidak ada pembayaran kredit penjualan di periode ini --'];
             return;
         }
 
         // Column titles
-        $this->rows[] = ['ID Pembayaran', 'Kode Transaksi', 'Tanggal Pembayaran', 'Jumlah'];
+        $this->rows[] = ['ID Pembayaran', 'Kode Penjualan', 'Tanggal Pembayaran', 'Jumlah'];
 
         foreach ($credits as $cp) {
             $this->rows[] = [
@@ -257,7 +257,7 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
         foreach ($returns as $r) {
             $this->rows[] = [
                 'ID Retur: ' . $r->retur_id
-                    . ' | Kode Transaksi: ' . ($r->transaction_id ?? '-')
+                    . ' | Kode Penjualan: ' . ($r->transaction_id ?? '-')
                     . ' | Tanggal: ' . Carbon::parse($r->return_date)->format('d-m-Y H:i')
                     . ' | Refund Amount: ' . $r->refund_amount
             ];
@@ -469,7 +469,7 @@ class CashFlowDetailExport implements FromArray, WithHeadings, WithEvents, WithT
             $cashIn += $sumPrepaid;
         }
 
-        // Pembayaran kredit transaksi (cash‐in)
+        // Pembayaran kredit penjualan (cash‐in)
         if ($this->activityEnabled('transactions')) {
             $sumCreditTx = DB::table('credit_payments as cp')
                 ->whereNull('cp.deleted_at')

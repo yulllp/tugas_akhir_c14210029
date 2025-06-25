@@ -108,7 +108,7 @@
       <div class="p-4 md:p-5 space-y-4">
         <div class="grid md:grid-cols-2 gap-4">
           <div>
-            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Tanggal Transaksi</label>
+            <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Tanggal Penjualan</label>
             <input type="text" disabled value="{{ $transaction->transaction_at ? \Carbon\Carbon::parse($transaction->transaction_at)->format('d-m-Y H:i') : '-' }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:text-white" />
           </div>
           <div>
@@ -149,7 +149,7 @@
                 </tr>
                 @empty
                 <tr>
-                  <td colspan="5" class="text-center px-4 py-3">Tidak ada detail transaksi.</td>
+                  <td colspan="5" class="text-center px-4 py-3">Tidak ada detail penjualan.</td>
                 </tr>
                 @endforelse
               </tbody>
@@ -256,7 +256,7 @@
       <div class="p-4 border-b rounded-t dark:border-gray-600 flex justify-between items-center">
         <div>
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            Pembayaran Transaksi #{{ $transaction->id }}
+            Pembayaran Penjualan #{{ $transaction->id }}
           </h3>
           <p class="text-sm text-gray-500 dark:text-gray-400">
             Dibayar: <span class="font-medium">{{ number_format($alreadyPaid, 0, ',', '.') }}</span> /

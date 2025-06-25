@@ -1,5 +1,5 @@
 <x-layout>
-  <x-header :href="route('transactions.show', $transaction->id)" title="Retur Transaksi #{{ $transaction->id }}" />
+  <x-header :href="route('transactions.show', $transaction->id)" title="Retur Penjualan #{{ $transaction->id }}" />
   <div class="mx-auto max-w-screen-xl">
     @if (session('error'))
     <div id="alert-border-2" class="flex absolute w-full items-center p-4 mb-4 text-red-800 border-t-4 border-red-300 bg-red-50 dark:text-red-400 dark:bg-gray-800 dark:border-red-800" role="alert">

@@ -9,7 +9,7 @@
     <!-- 2) Inner panel: white on light, gray-800 on dark; text likewise -->
     <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
       <h2 class="text-lg font-semibold mb-4 text-center">
-        Transaksi berhasil disimpan
+        Penjualan berhasil disimpan
       </h2>
       <div class="flex justify-center gap-4">
         <button
@@ -233,7 +233,7 @@
 
   <div id="customModal" class="fixed flex inset-0 p-4 sm:p-0 z-50 hidden backdrop-blur-sm bg-white/30 top-0 left-0 items-center justify-center">
     <div class="bg-white dark:bg-gray-700 rounded-lg shadow-lg w-full max-w-2xl p-6">
-      <h2 class="text-xl text-gray-900 dark:text-white font-semibold mb-4">Ringkasan Transaksi</h2>
+      <h2 class="text-xl text-gray-900 dark:text-white font-semibold mb-4">Ringkasan Penjualan</h2>
 
       <div class="space-y-1 text-sm mb-4 text-gray-900 dark:text-white">
         <div x-data="{ currentTime: '' }" x-init="
@@ -330,7 +330,7 @@
       },
       error: function(xhr) {
         console.error(xhr);
-        alert('Gagal memuat data transaksi sementara.');
+        alert('Gagal memuat data penjualan sementara.');
       },
       complete: function() {
         $('#temp-loading').addClass('hidden'); // Hide loader in both success & error
@@ -463,7 +463,7 @@
   creditToggle.addEventListener('change', function() {
     if (this.checked) {
       if (!customerInput.value || customerInput.value.trim() === '') {
-        alert('Harap masukkan nama pembeli untuk transaksi kredit.');
+        alert('Harap masukkan nama pembeli untuk penjualan kredit.');
         this.checked = false;
         return;
       }
@@ -727,7 +727,7 @@
       toggleActionButtons(false);
 
       if (tempItems.length === 0) {
-        alert('Tidak ada item dalam transaksi.');
+        alert('Tidak ada item dalam penjualan.');
         resetButton();
         toggleActionButtons(true);
         return;
@@ -780,7 +780,7 @@
       toggleActionButtons(true);
 
     }).fail(function() {
-      alert('Gagal mengambil data transaksi sementara.');
+      alert('Gagal mengambil data penjualan sementara.');
       resetButton();
       toggleActionButtons(true);
     });

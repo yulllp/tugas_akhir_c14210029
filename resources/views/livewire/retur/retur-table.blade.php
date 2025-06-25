@@ -149,7 +149,7 @@
                                     @if ($retur->transaction_id)
                                     <a href="{{ route('transactions.show', $retur->transaction_id) }}"
                                         class="text-blue-600 hover:underline">
-                                        Transaksi #{{ $retur->transaction_id }}
+                                        Penjualan #{{ $retur->transaction_id }}
                                     </a>
                                     @elseif ($retur->purchase_id)
                                     <a href="{{ route('purchases.show', $retur->purchase_id) }}"

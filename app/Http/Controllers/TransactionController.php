@@ -153,7 +153,7 @@ class TransactionController extends Controller
 
     public function show(Transaction $transaction)
     {
-        $title = 'Detail Transaksi #' . $transaction->id;
+        $title = 'Detail Penjualan #' . $transaction->id;
         $transaction->load('detailTransactions.product');
         return view('pos.show', compact('transaction', 'title'));
     }
@@ -175,7 +175,7 @@ class TransactionController extends Controller
         if (!$final || !is_array($final)) {
             return redirect()
                 ->route('transactions.create')
-                ->with('error', 'Format transaksi tidak valid.');
+                ->with('error', 'Format penjualan tidak valid.');
         }
 
         $validator = Validator::make($final, [
@@ -199,7 +199,7 @@ class TransactionController extends Controller
             $tempItems = TempTransaction::where('user_id', $userId)->get();
 
             if ($tempItems->isEmpty()) {
-                throw new \Exception('Tidak ada item dalam transaksi.');
+                throw new \Exception('Tidak ada item dalam penjualan.');
             }
 
             // First pass: atomic decrement of stock for all items
@@ -248,7 +248,7 @@ class TransactionController extends Controller
             // Clear temp items and log activity
             TempTransaction::where('user_id', $userId)->delete();
 
-            activity('transaksi')
+            activity('penjualan')
                 ->performedOn($transaction)
                 ->causedBy(Auth::user())
                 ->withProperties([
@@ -258,11 +258,11 @@ class TransactionController extends Controller
                     'status' => $transaction->status,
                     'pelanggan_id' => $transaction->customer_id,
                 ])
-                ->log("Transaksi #{$transaction->id} berhasil dibuat");
+                ->log("Penjualan #{$transaction->id} berhasil dibuat");
 
             return redirect()
                 ->route('transactions.create')
-                ->with('success', 'Transaksi berhasil')
+                ->with('success', 'Penjualan berhasil')
                 ->with('transaction_id', $transaction->id);
 
         } catch (\Exception $e) {
@@ -309,7 +309,7 @@ class TransactionController extends Controller
         // Pass the transaction (with its current customer) to the view
         return view('pos.edit', [
             'transaction' => $transaction,
-            'title' => 'Edit Transaksi #' . $transaction->id,
+            'title' => 'Edit Penjualan #' . $transaction->id,
         ]);
     }
 
@@ -327,7 +327,7 @@ class TransactionController extends Controller
         $transaction->customer_id = $validated['selected_customer_id'];
         $transaction->save();
 
-        activity('transaksi')
+        activity('penjualan')
             ->performedOn($transaction)
             ->causedBy(Auth::user())
             ->withProperties([
@@ -339,7 +339,7 @@ class TransactionController extends Controller
                     'pelanggan_id' => $validated['selected_customer_id'],
                 ],
             ])
-            ->log("Transaksi #{$transaction->id} berhasil diperbarui");
+            ->log("Penjualan #{$transaction->id} berhasil diperbarui");
 
         return redirect()->route('transactions.show', $transaction->id)->with('success', 'Trasaksi berhasil diubah');
         ;

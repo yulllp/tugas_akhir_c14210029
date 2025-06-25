@@ -52,7 +52,7 @@ class CashFlowController extends Controller
                 $activities->push([
                     // full datetime di format d-m-Y H:i
                     'date'      => Carbon::parse($tx->transaction_at)->format('d-m-Y H:i'),
-                    'type'      => 'Transaksi #' . $tx->id,
+                    'type'      => 'Penjualan #' . $tx->id,
                     'raw_type'  => 'transaction',
                     'id'        => $tx->id,
                     'amount'    => $tx->prePaid,
@@ -87,7 +87,7 @@ class CashFlowController extends Controller
             foreach ($credits as $cr) {
                 $activities->push([
                     'date'      => Carbon::parse($cr->payDate)->format('d-m-Y H:i'),
-                    'type'      => 'Pembayaran Kredit Transaksi #' . $cr->transaction_id,
+                    'type'      => 'Pembayaran Kredit Penjualan #' . $cr->transaction_id,
                     'raw_type'  => 'credit_payment',
                     'id'        => $cr->id,
                     'amount'    => $cr->payment_total,

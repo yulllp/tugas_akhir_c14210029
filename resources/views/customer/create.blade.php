@@ -44,7 +44,7 @@
         <ul class="mt-1.5 list-disc list-inside">
           <li>Nama pelanggan tidak boleh sama</li>
           <li>Periksa kembali daftar nama pelanggan agar menghindari data pelanggan yang berlebihan</li>
-          <li>Data pelanggan akan digunakan untuk memonitor transaksi dan utang pelanggan</li>
+          <li>Data pelanggan akan digunakan untuk memonitor penjualan dan utang pelanggan</li>
         </ul>
       </div>
     </div>
