@@ -126,11 +126,22 @@
   </div>
 
   <script>
+    // Improved print automation
     document.addEventListener('DOMContentLoaded', function() {
-      window.print();
+      // Short delay to ensure everything is loaded
+      setTimeout(function() {
+        // Focus the window to ensure print dialog gets focus
+        window.focus();
+        // Print command
+        window.print();
+      }, 200);
     });
+
+    // Close after printing
     window.onafterprint = function() {
-      window.close();
+      setTimeout(function() {
+        window.close();
+      }, 100);
     };
   </script>
 </body>
