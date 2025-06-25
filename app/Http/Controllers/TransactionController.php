@@ -294,7 +294,7 @@ class TransactionController extends Controller
 
 
         try {
-            $connector = new WindowsPrintConnector("POS-58");
+            $connector = new WindowsPrintConnector("\\\\localhost\\POS-58");
 
             // 2) (Optional) load capability profile if using graphics:
             $profile = CapabilityProfile::load("default");
