@@ -280,22 +280,26 @@
       </form>
     </div>
   </div>
+
+  <div id="remainingModal" class="fixed inset-0 hidden bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
+      <h3 class="text-lg font-semibold mb-4 dark:text-white">Sisa Utang Pelanggan</h3>
+      <div id="remainingModalBody" class="mb-6 text-gray-900 dark:text-gray-200">
+        <!-- injected content -->
+      </div>
+      <div class="text-right">
+        <button onclick="closeRemainingModal()"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
 </x-layout>
 
-<!-- @if(session('success') && session('transaction_id'))
 <script>
-  document.addEventListener("DOMContentLoaded", async () => {
-    // Fetch transaction data from server
-    const res = await fetch(`/print-data/{{ session('transaction_id') }}`);
-    const data = await res.json();
-    printReceipt(data); // use the function above
-  });
-</script>
-@endif -->
-
-<script>
-  const currentUserRole = @json(Auth::user()->role);
-  console.log('Current User Role:', currentUserRole);
+  const currentUserRole = @json(Auth::user() - > role);
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
   function toggleActionButtons(enable = true) {
     $('button').prop('disabled', !enable);
@@ -461,18 +465,27 @@
   let pendingToggleState = false;
 
   creditToggle.addEventListener('change', function() {
-    if (!customerInput.value || customerInput.value.trim() === '') {
+    // always require a customer first
+    if (!customerInput.value.trim()) {
       alert('Harap masukkan nama pembeli untuk penjualan kredit.');
       this.checked = false;
       return;
     }
 
+    const customerId = $('#selected-customer-id').val();
+    const custName = customerInput.value;
+
+    //  — Owner: no modal, just toggle + show remaining
     if (currentUserRole === 'owner') {
       isCredit = this.checked;
       customerInput.disabled = this.checked;
+      if (isCredit) {
+        fetchAndShowRemaining(customerId, custName);
+      }
       return;
     }
 
+    // — Non‑owner: need supervisor auth first
     if (this.checked) {
       this.checked = false;
       pendingToggleState = true;
@@ -482,6 +495,7 @@
       customerInput.disabled = false;
     }
   });
+
 
   function showCreditModal() {
     document.getElementById('credit-supervisor-username').value = '';
@@ -522,6 +536,10 @@
           document.getElementById('credit-auth-modal').classList.add('hidden');
           creditToggle.checked = true;
           isCredit = true;
+
+          const customerId = $('#selected-customer-id').val();
+          const custName = $('#customer').val();
+          fetchAndShowRemaining(custId, custName);
         } else {
           usernameInput.value = '';
           passwordInput.value = '';
@@ -535,6 +553,38 @@
       }
     });
   }
+
+  function fetchAndShowRemaining(customerId, customerName) {
+    $.ajax({
+      url: "{{ route('credit.remaining') }}",
+      method: 'GET',
+      data: {
+        customer_id: customerId
+      },
+      headers: {
+        'X-CSRF-TOKEN': csrfToken
+      },
+      success(data) {
+        const rupiah = new Intl.NumberFormat('id-ID').format(data.remaining);
+        // build the markup
+        const html = `
+        <p><strong>${customerName}</strong></p>
+        <p>Sisa utang: <span class="font-semibold">Rp ${rupiah}</span></p>
+      `;
+        $('#remainingModalBody').html(html);
+        $('#remainingModal').removeClass('hidden');
+      },
+      error() {
+        $('#remainingModalBody').html('<p>Gagal mengambil data sisa utang.</p>');
+        $('#remainingModal').removeClass('hidden');
+      }
+    });
+  }
+
+  function closeRemainingModal() {
+    $('#remainingModal').addClass('hidden');
+  }
+
 
   customerInput.addEventListener('input', function() {
     if (this.value.trim() === '') {

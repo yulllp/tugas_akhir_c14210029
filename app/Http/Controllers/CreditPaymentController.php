@@ -27,6 +27,36 @@ class CreditPaymentController extends Controller
         //
     }
 
+    public function remaining(Request $request)
+    {
+        $request->validate(['customer_id' => 'required|exists:customers,id']);
+
+        $customerId = $request->customer_id;
+
+        $unpaid = Transaction::with(['returs.items', 'creditPayment'])
+            ->where('status', 'unpaid')
+            ->where('customer_id', $customerId)
+            ->get();
+
+        $totalRemaining = $unpaid->reduce(function ($carry, $trx) {
+            // compute netTotal after retur
+            $returTotal = $trx->returs->flatMap->items->sum('subtotal');
+            $netTotal   = max(0, $trx->total - $returTotal);
+
+            // already paid
+            $paid = $trx->prePaid + $trx->creditPayment->sum('payment_total');
+            $paid = max(0, $paid);
+
+            // remaining per trx
+            $rem = max(0, $netTotal - $paid);
+            return $carry + $rem;
+        }, 0);
+
+        return response()->json([
+            'remaining' => $totalRemaining,
+        ]);
+    }
+
     /**
      * Store a newly created resource in storage.
      */
@@ -72,12 +102,10 @@ class CreditPaymentController extends Controller
             }
 
             return back()->with('success', 'Pembayaran berhasil disimpan.');
-
         } catch (\Illuminate\Database\QueryException $e) {
             return back()
                 ->withInput()
                 ->withErrors(['db_error' => 'Gagal menyimpan pembayaran: ' . $e->getMessage()]);
-
         } catch (\Exception $e) {
             return back()
                 ->withInput()

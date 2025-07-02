@@ -17,6 +17,7 @@ use App\Http\Controllers\StokOpnameScheduleController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
+use App\Models\CreditPayment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/latest-products', [ProductController::class, 'getLatestProducts'])->name('get.products');
     Route::get('/get-customers', [CustomerController::class, 'getCustomer'])->name('get.customers');
     Route::get('/print/{transaction}', [TransactionController::class, 'print'])->name('transactions.print');
+    Route::get('/credit/remaining', [CreditPayment::class, 'remaining'])->name('credit.remaining');
 
     Route::middleware(['auth', 'owner'])->group(function () {
         Route::post('/products/create', [ProductController::class, 'store'])->name('products.store');
