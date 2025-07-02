@@ -298,7 +298,7 @@
 </x-layout>
 
 <script>
-  const currentUserRole = @json(Auth::user() - > role);
+  const currentUserRole = @json(Auth::user()->role);
   const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
   function toggleActionButtons(enable = true) {
