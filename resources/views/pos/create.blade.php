@@ -294,7 +294,7 @@
 @endif -->
 
 <script>
-  const currentUserRole = @json(Auth::user() - > role);
+  const currentUserRole = @json(Auth::user()->role);
   console.log('Current User Role:', currentUserRole);
 
   function toggleActionButtons(enable = true) {
