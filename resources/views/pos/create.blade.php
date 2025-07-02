@@ -298,7 +298,7 @@
 </x-layout>
 
 <script>
-  const currentUserRole = @json(Auth::user()->role);
+  const currentUserRole = @json(Auth::user() - > role);
   const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
   function toggleActionButtons(enable = true) {
@@ -555,8 +555,10 @@
   }
 
   function fetchAndShowRemaining(customerId, customerName) {
+    console.log('[fetchAndShowRemaining] called for:', customerId, customerName);
+
     $.ajax({
-      url: "{{ route('credit.remaining') }}",
+      url: remainingUrl,
       method: 'GET',
       data: {
         customer_id: customerId
@@ -565,21 +567,26 @@
         'X-CSRF-TOKEN': csrfToken
       },
       success(data) {
+        console.log('[fetchAndShowRemaining] success data:', data);
         const rupiah = new Intl.NumberFormat('id-ID').format(data.remaining);
-        // build the markup
         const html = `
         <p><strong>${customerName}</strong></p>
         <p>Sisa utang: <span class="font-semibold">Rp ${rupiah}</span></p>
       `;
         $('#remainingModalBody').html(html);
+
+        // Show the modal
         $('#remainingModal').removeClass('hidden');
+        console.log('[fetchAndShowRemaining] modal classes now:', $('#remainingModal').attr('class'));
       },
-      error() {
+      error(jqXHR, textStatus, errorThrown) {
+        console.error('[fetchAndShowRemaining] ERROR', textStatus, errorThrown);
         $('#remainingModalBody').html('<p>Gagal mengambil data sisa utang.</p>');
         $('#remainingModal').removeClass('hidden');
       }
     });
   }
+
 
   function closeRemainingModal() {
     $('#remainingModal').addClass('hidden');
