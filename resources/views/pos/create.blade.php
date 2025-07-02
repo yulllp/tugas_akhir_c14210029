@@ -4,8 +4,7 @@
   <!-- 1) Make the overlay switch colors -->
   <div
     id="successModal"
-    class="fixed inset-0 bg-white/30 dark:bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
-  >
+    class="fixed inset-0 bg-white/30 dark:bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
     <!-- 2) Inner panel: white on light, gray-800 on dark; text likewise -->
     <div class="bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
       <h2 class="text-lg font-semibold mb-4 text-center">
@@ -15,14 +14,12 @@
         <button
           id="printButton"
           data-transaction-id="{{ session('transaction_id') }}"
-          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition"
-        >
+          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition">
           Cetak
         </button>
         <button
           onclick="document.getElementById('successModal').remove()"
-          class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded transition"
-        >
+          class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded transition">
           Batal
         </button>
       </div>
@@ -297,6 +294,9 @@
 @endif -->
 
 <script>
+  const currentUserRole = @json(Auth::user() - > role);
+  console.log('Current User Role:', currentUserRole);
+
   function toggleActionButtons(enable = true) {
     $('button').prop('disabled', !enable);
   }
@@ -461,15 +461,20 @@
   let pendingToggleState = false;
 
   creditToggle.addEventListener('change', function() {
-    if (this.checked) {
-      if (!customerInput.value || customerInput.value.trim() === '') {
-        alert('Harap masukkan nama pembeli untuk penjualan kredit.');
-        this.checked = false;
-        return;
-      }
+    if (!customerInput.value || customerInput.value.trim() === '') {
+      alert('Harap masukkan nama pembeli untuk penjualan kredit.');
+      this.checked = false;
+      return;
+    }
 
-      // Require supervisor auth
-      this.checked = false; // Revert UI until approved
+    if (currentUserRole === 'owner') {
+      isCredit = this.checked;
+      customerInput.disabled = this.checked;
+      return;
+    }
+
+    if (this.checked) {
+      this.checked = false;
       pendingToggleState = true;
       showCreditModal();
     } else {
@@ -648,6 +653,31 @@
   }
 
   function deleteTempItem(id) {
+    // if current user is owner, delete immediately
+    if (currentUserRole === 'owner') {
+      $.ajax({
+        url: "{{ route('transactions.temp.deleteWithAuth') }}",
+        method: 'POST',
+        data: {
+          id: id,
+          // send no username/password so back‑end should also bypass
+          _token: $('meta[name="csrf-token"]').attr('content')
+        },
+        success(resp) {
+          if (resp.success) {
+            loadTempTransactions();
+          } else {
+            alert(resp.message || 'Gagal menghapus item.');
+          }
+        },
+        error() {
+          alert('Terjadi kesalahan saat mencoba menghapus item.');
+        }
+      });
+      return;
+    }
+
+    // otherwise, show the supervisor auth modal as before
     $('#delete-temp-id').val(id);
     $('#supervisor-username').val('');
     $('#supervisor-password').val('');
@@ -791,37 +821,4 @@
       summaryText.textContent = 'Ringkasan';
     }
   });
-
-  // qz.websocket.connect().then(() => {
-  //   console.log("QZ Tray connected");
-  // }).catch(err => alert("Failed to connect to QZ Tray"));
-
-  // function printReceipt(transaction) {
-  //   const config = qz.configs.create("POS-58"); // Replace with actual printer name
-  //   const data = [{
-  //     type: 'raw',
-  //     format: 'plain',
-  //     data: [
-  //       'Yamdena Plaza',
-  //       '==============================',
-  //       `Nota   : ${transaction.code}`,
-  //       `Tanggal: ${transaction.date}`,
-  //       `Kasir  : ${transaction.cashier}`,
-  //       '------------------------------',
-  //       ...transaction.items.map(item =>
-  //         `${item.name} x ${item.qty} @${item.price} Disc: ${item.disc} = ${item.subtotal}`
-  //       ),
-  //       '------------------------------',
-  //       `Total   : ${transaction.total}`,
-  //       `Bayar   : ${transaction.paid}`,
-  //       `Status  : ${transaction.status}`,
-  //       '==============================',
-  //       'Terima kasih!',
-  //       '\x1B\x64\x03', // Feed 3 lines
-  //       '\x1D\x56\x00' // Full cut
-  //     ].join('\n')
-  //   }];
-
-  //   qz.print(config, data).catch(e => alert("Print Error: " + e));
-  // }
 </script>

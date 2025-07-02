@@ -111,6 +111,11 @@ class TransactionController extends Controller
 
     public function deleteTempWithAuth(Request $request)
     {
+        if (Auth::check() && Auth::user()->role === 'owner') {
+            TempTransaction::findOrFail($request->id)->delete();
+            return response()->json(['success' => true]);
+        }
+
         $request->validate([
             'id' => 'required|exists:temp_transactions,id',
             'username' => 'required|string',
@@ -133,6 +138,10 @@ class TransactionController extends Controller
 
     public function authorizeSupervisorCredit(Request $request)
     {
+        if (Auth::check() && Auth::user()->role === 'owner') {
+            return response()->json(['success' => true]);
+        }
+
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
@@ -161,9 +170,7 @@ class TransactionController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
@@ -264,7 +271,6 @@ class TransactionController extends Controller
                 ->route('transactions.create')
                 ->with('success', 'Penjualan berhasil')
                 ->with('transaction_id', $transaction->id);
-
         } catch (\Exception $e) {
             Log::error('Transaction error: ' . $e->getMessage());
 
@@ -341,8 +347,7 @@ class TransactionController extends Controller
             ])
             ->log("Penjualan #{$transaction->id} berhasil diperbarui");
 
-        return redirect()->route('transactions.show', $transaction->id)->with('success', 'Trasaksi berhasil diubah');
-        ;
+        return redirect()->route('transactions.show', $transaction->id)->with('success', 'Trasaksi berhasil diubah');;
     }
 
     /**
