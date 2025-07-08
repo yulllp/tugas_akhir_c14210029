@@ -8,6 +8,7 @@ use App\Models\Purchase;
 use App\Models\User;
 use App\Notifications\CreditReminderNotification;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Log;
 
 class SendCreditReminders extends Command
 {
@@ -19,7 +20,7 @@ class SendCreditReminders extends Command
         // Get reminder interval from settings
         $reminderInterval = (int) Setting::get('credit_reminder_days', 7);
         $lastReminderDate = Setting::get('last_credit_reminder_date');
-        
+        Log::info('Last reminder date: ' . $lastReminderDate);
         // // Check if we should send reminders today
         // if ($lastReminderDate && now()->diffInDays($lastReminderDate) < $reminderInterval) {
         //     $this->info('Reminder interval not reached yet.');
