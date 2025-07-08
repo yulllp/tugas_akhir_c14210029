@@ -57,8 +57,8 @@ class CreditReminderNotification extends Notification
 
         return (new WebPushMessage)
             ->title($title)
-            ->body($body)
+            ->body('klik untuk melihat detail utang dan piutang')
             ->icon($icon)
-            ->data(['url' => $url]);
+            ->data(['url' => $url . '?reminderUtangPiutang='. urlencode($body)]);
     }
 }

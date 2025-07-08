@@ -2,6 +2,24 @@
     <section class="bg-gray-50 dark:bg-gray-900">
         <div class="mx-auto max-w-screen-xl space-y-6">
 
+            @if(request()->has('reminderUtangPiutang'))
+            @php
+            // decode and split lines
+            $body = urldecode(request('reminderUtangPiutang'));
+            $lines = explode("\n", trim($body));
+            @endphp
+            <div class="bg-yellow-100 dark:bg-yellow-900 border-l-4 border-yellow-500 dark:border-yellow-700 p-4 rounded-lg mb-6">
+                <h3 class="text-md font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+                    ⏰ Detail Pengingat Utang & Piutang
+                </h3>
+                <ul class="list-disc list-inside text-yellow-700 dark:text-yellow-300">
+                    @foreach($lines as $line)
+                    <li>{{ $line }}</li>
+                    @endforeach
+                </ul>
+            </div>
+            @endif
+
             <!-- Summary Card (unchanged) -->
             <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
