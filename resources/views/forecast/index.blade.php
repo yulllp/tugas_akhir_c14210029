@@ -187,7 +187,7 @@
             <tr class="bg-gray-100 dark:bg-gray-700">
               <th class="px-4 py-2 text-left">Produk</th>
               <th class="px-4 py-2 text-left">Stok Saat Ini</th> 
-              <th class="px-4 py-2 text-left">Penjualan Sebelumnya</th>
+              <!-- <th class="px-4 py-2 text-left">Penjualan Sebelumnya</th> -->
               <th class="px-4 py-2 text-left">Prediksi</th>
               <th class="px-4 py-2 text-left">Saran</th>
             </tr>
@@ -201,7 +201,7 @@
               <td class="px-4 py-2">{{ $s['current_stock'] }}</td>
 
               <!-- 2. Penjualan Sebelumnya -->
-              <td class="px-4 py-2">
+              <!-- <td class="px-4 py-2">
                 @if($s['is_actual'])
                 <span class="text-blue-600 font-medium">{{ $s['sales'] }}</span>
                 @else
@@ -211,7 +211,7 @@
                 <span class="text-orange-600 font-medium">{{ $s['sales'] }}</span>
                 @endif
                 @endif
-              </td>
+              </td> -->
 
               <!-- 3. Prediksi -->
               <td class="px-4 py-2">
