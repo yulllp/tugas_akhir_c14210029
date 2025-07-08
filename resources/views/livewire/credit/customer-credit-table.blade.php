@@ -4,11 +4,19 @@
 
             @if(request()->has('reminderUtangPiutang'))
             @php
-            // decode and split lines
             $body = urldecode(request('reminderUtangPiutang'));
             $lines = explode("\n", trim($body));
             @endphp
-            <div class="bg-yellow-100 dark:bg-yellow-900 border-l-4 border-yellow-500 dark:border-yellow-700 p-4 rounded-lg mb-6">
+            <div
+                id="reminder-panel"
+                class="relative bg-yellow-100 dark:bg-yellow-900 border-l-4 border-yellow-500 dark:border-yellow-700 p-4 rounded-lg mb-6">
+                <button
+                    type="button"
+                    onclick="dismissReminder()"
+                    class="absolute top-2 right-2 text-yellow-800 dark:text-yellow-200 hover:text-yellow-600 dark:hover:text-yellow-400"
+                    aria-label="Tutup">
+                    &times;
+                </button>
                 <h3 class="text-md font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
                     ⏰ Detail Pengingat Utang & Piutang
                 </h3>
@@ -337,4 +345,15 @@
             }
         });
     })();
+
+    function dismissReminder() {
+        const panel = document.getElementById('reminder-panel');
+        if (panel) {
+            // Option A: completely remove from DOM
+            panel.remove();
+
+            // Option B: just hide it
+            // panel.classList.add('hidden');
+        }
+    }
 </script>
