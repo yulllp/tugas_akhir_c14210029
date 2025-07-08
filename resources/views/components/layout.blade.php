@@ -50,6 +50,35 @@
         }
     </script>
     @livewireScripts
+
+    <script>
+        $(document).ready(function() {
+            // The URL of your polling endpoint
+            const remindersUrl = "{{ route('credit.reminders.handle') }}";
+
+            // Function to fetch & render reminders
+            function fetchReminders() {
+                $.ajax({
+                    url: remindersUrl,
+                    method: 'GET',
+                    dataType: 'json',
+                    success(response) {
+                        console.log('test');
+                    },
+                    error(xhr, status, error) {
+                        console.error('Gagal mengambil reminder kredit:', error);
+                    }
+                });
+            }
+
+            // Initial fetch
+            fetchReminders();
+
+            // Poll every 10 seconds (10000 ms)
+            setInterval(fetchReminders, 10000);
+        });
+    </script>
+
 </body>
 
 </html>

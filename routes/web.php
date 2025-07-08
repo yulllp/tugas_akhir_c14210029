@@ -140,5 +140,7 @@ Route::middleware('auth')->group(function () {
         Route::post('settings', [SettingController::class, 'update'])->name('settings.update');
 
         Route::get('/damages', [DamagedController::class, 'index'])->name('damages.index');
+
+        Route::get('credit-reminders', [CreditPaymentController::class, 'handle'])->name('credit.reminders.handle');
     });
 });
