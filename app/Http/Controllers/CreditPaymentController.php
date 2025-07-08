@@ -301,6 +301,11 @@ class CreditPaymentController extends Controller
         } else {
             Log::info('No credits to remind about.');
         }
+        return response()->json([
+            'message' => 'Credit reminders processed successfully.',
+            'customers' => $customers,
+            'suppliers' => $suppliers,
+        ]);
     }
 
     /**

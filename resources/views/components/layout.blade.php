@@ -63,6 +63,7 @@
                     method: 'GET',
                     success(response) {
                         console.log('test');
+                        console.log('Reminder response:', response);
                     },
                     error(xhr, status, error) {
                         console.error('Gagal mengambil reminder kredit:', error);
@@ -74,7 +75,7 @@
             fetchReminders();
 
             // Poll every 10 seconds (10000 ms)
-            setInterval(fetchReminders, 10000);
+            setInterval(fetchReminders, 60000);
         });
     </script>
 
