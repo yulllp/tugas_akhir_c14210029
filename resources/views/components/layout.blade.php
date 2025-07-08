@@ -61,7 +61,6 @@
                 $.ajax({
                     url: remindersUrl,
                     method: 'GET',
-                    dataType: 'json',
                     success(response) {
                         console.log('test');
                     },
