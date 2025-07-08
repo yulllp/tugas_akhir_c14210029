@@ -113,6 +113,106 @@ class CreditPaymentController extends Controller
         }
     }
 
+    public function bulkStore(Request $request)
+    {
+        $payload = $request->validate([
+            'customer_id'    => ['required', 'exists:customers,id'],
+            'payDate'        => ['required', 'date_format:Y-m-d\TH:i'],
+            'payment_total'  => ['required', 'numeric', 'min:1'],
+            'description'    => ['nullable', 'string'],
+        ]);
+
+        // 1) Calculate the customer's total remaining debt
+        $allUnpaid = Transaction::where('customer_id', $payload['customer_id'])
+            ->where('status', 'unpaid')
+            ->with(['returs.items', 'creditPayment'])
+            ->get();
+
+        $aggregateRemaining = $allUnpaid->sum(function ($trx) {
+            $totalReturNominal = $trx
+                ->returs
+                ->flatMap(fn($r) => $r->items)
+                ->sum('subtotal');
+
+            $effectiveTotal = $trx->total - $totalReturNominal;
+            $creditPaidSoFar = $trx->prePaid + $trx->creditPayment->sum('payment_total');
+            return max(0, $effectiveTotal - $creditPaidSoFar);
+        });
+
+        // 2) Ensure you’re not over‐paying in total
+        if ($payload['payment_total'] > $aggregateRemaining) {
+            abort(422, 'Nominal pembayaran melebihi total sisa tagihan pelanggan.');
+        }
+
+        $amountToAllocate = $payload['payment_total'];
+
+        try {
+            foreach ($allUnpaid->sortBy('transaction_at') as $trx) {
+                if ($amountToAllocate <= 0) {
+                    break;
+                }
+
+                // Lock *this* transaction for update (just like your single‐store)
+                $trx = Transaction::whereKey($trx->id)
+                    ->lockForUpdate()
+                    ->with(['returs.items', 'creditPayment'])
+                    ->first();
+
+                // Recompute exactly as in store():
+                $totalReturNominal = $trx
+                    ->returs
+                    ->flatMap(fn($r) => $r->items)
+                    ->sum('subtotal');
+
+                $initialPaid       = $trx->prePaid;
+                $creditPaidSoFar   = $trx->creditPayment->sum('payment_total');
+                $alreadyPaid       = $initialPaid + $creditPaidSoFar;
+                $effectiveTotal    = $trx->total - $totalReturNominal;
+                $remainingBefore   = $effectiveTotal - $alreadyPaid;
+
+                if ($remainingBefore <= 0) {
+                    continue;
+                }
+
+                // allocate up to remainingBefore
+                $alloc = min($remainingBefore, $amountToAllocate);
+
+                // same over‐pay guard (should never trigger given step 2)
+                if ($alloc > $remainingBefore) {
+                    abort(422, "Nominal pembayaran melebihi sisa tagihan transaksi #{$trx->id}.");
+                }
+
+                // create payment
+                $trx->creditPayment()->create([
+                    'payDate'       => $payload['payDate'],
+                    'payment_total' => $alloc,
+                    'description'   => $payload['description'] ?? null,
+                ]);
+
+                // status update, exactly like store()
+                $newCreditPaid  = $creditPaidSoFar + $alloc;
+                $newAlreadyPaid = $initialPaid + $newCreditPaid;
+                if ($newAlreadyPaid >= $effectiveTotal) {
+                    $trx->status = 'paid';
+                    $trx->save();
+                }
+
+                $amountToAllocate -= $alloc;
+            }
+
+            return back()->with('success', 'Pembayaran bulk berhasil disimpan.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()
+                ->withInput()
+                ->withErrors(['db_error' => 'Gagal menyimpan pembayaran: ' . $e->getMessage()]);
+        } catch (\Exception $e) {
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
+        }
+    }
+
+
     /**
      * Display the specified resource.
      */

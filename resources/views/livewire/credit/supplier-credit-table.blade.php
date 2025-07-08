@@ -56,6 +56,15 @@
                                 @endforeach
                             </select>
                         </div>
+                        @if($supplier_id)
+                        <div class="mb-4">
+                            <button
+                                onclick="document.getElementById('bulk-pay-modal').classList.remove('hidden')"
+                                class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                                Bayar Hutang Supplier
+                            </button>
+                        </div>
+                        @endif
 
                         <!-- Search + Per Page -->
                         <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between space-y-2 md:space-y-0 md:space-x-4 w-full">
@@ -221,5 +230,93 @@
             </div>
 
         </div>
+        <div
+            id="bulk-pay-modal"
+            class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+                <h3 class="text-xl font-semibold mb-4">Pembayaran Hutang Bulk</h3>
+                <form action="{{ route('credit-purchase.bulk-store') }}" method="POST" id="bulkPayForm">
+                    @csrf
+                    <input type="hidden" name="supplier_id" value="{{ $supplier_id }}" />
+
+                    <div class="mb-4">
+                        <label for="bulkPayDate" class="block text-sm font-medium">Tanggal Bayar</label>
+                        <input
+                            type="datetime-local"
+                            id="bulkPayDate"
+                            name="payDate"
+                            required
+                            class="mt-1 block w-full border rounded p-2" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="bulkPaymentTotal" class="block text-sm font-medium">
+                            Nominal Pembayaran (maks Rp {{ number_format($summaryTotals['totalRemaining'],0,',','.') }})
+                        </label>
+                        <input
+                            type="text"
+                            id="bulkPaymentTotal"
+                            name="payment_total"
+                            required
+                            class="mt-1 block w-full border rounded p-2"
+                            data-max="{{ $summaryTotals['totalRemaining'] }}" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="bulkDescription" class="block text-sm font-medium">Deskripsi (opsional)</label>
+                        <textarea
+                            id="bulkDescription"
+                            name="description"
+                            rows="3"
+                            class="mt-1 block w-full border rounded p-2"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-2">
+                        <button
+                            type="button"
+                            onclick="document.getElementById('bulk-pay-modal').classList.add('hidden')"
+                            class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Simpan Pembayaran
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </section>
 </div>
+
+<script>
+    (function() {
+        const input = document.getElementById('bulkPaymentTotal');
+        const maxAmt = parseInt(input.dataset.max, 10);
+        const fmt = new Intl.NumberFormat('id-ID');
+
+        let raw = '';
+        input.addEventListener('input', e => {
+            raw = e.target.value.replace(/\D/g, '');
+            if (raw && parseInt(raw, 10) > maxAmt) {
+                raw = maxAmt.toString();
+                alert(`Maksimum pembayaran ${fmt.format(maxAmt)}`);
+            }
+            e.target.value = raw ? fmt.format(raw) : '';
+        });
+
+        document.getElementById('bulkPayForm').addEventListener('submit', e => {
+            const amt = parseInt(raw || '0', 10);
+            if (!amt) {
+                e.preventDefault();
+                alert('Nominal tidak boleh kosong.');
+            } else if (amt > maxAmt) {
+                e.preventDefault();
+                alert(`Maksimum pembayaran ${fmt.format(maxAmt)}`);
+            } else {
+                input.value = amt;
+            }
+        });
+    })();
+</script>

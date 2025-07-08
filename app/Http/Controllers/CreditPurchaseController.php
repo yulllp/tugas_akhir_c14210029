@@ -78,15 +78,109 @@ class CreditPurchaseController extends Controller
             }
 
             return back()->with('success', 'Pembayaran berhasil disimpan.');
-
         } catch (\Illuminate\Database\QueryException $e) {
             // Tangani error database
             return back()
                 ->withInput()
                 ->withErrors(['db_error' => 'Gagal menyimpan pembayaran: ' . $e->getMessage()]);
-
         } catch (\Exception $e) {
             // Tangani error umum
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);
+        }
+    }
+
+    public function bulkStore(Request $request)
+    {
+        $payload = $request->validate([
+            'supplier_id'    => ['required', 'exists:suppliers,id'],
+            'payDate'        => ['required', 'date_format:Y-m-d\TH:i'],
+            'payment_total'  => ['required', 'numeric', 'min:1'],
+            'description'    => ['nullable', 'string'],
+        ]);
+
+        // 1) Hitung total sisa hutang supplier
+        $allUnpaid = Purchase::where('supplier_id', $payload['supplier_id'])
+            ->where('status', 'unpaid')
+            ->with(['returs.items', 'creditPurchase'])
+            ->get();
+
+        $aggregateRemaining = $allUnpaid->sum(function ($pur) {
+            $totalRetur = $pur->returs
+                ->flatMap(fn($r) => $r->items)
+                ->sum('subtotal');
+
+            $effectiveTotal   = $pur->total - $totalRetur;
+            $paidSoFar        = $pur->prePaid + $pur->creditPurchase->sum('payment_total');
+            return max(0, $effectiveTotal - $paidSoFar);
+        });
+
+        // 2) Cegah kalau bayar melebihi total sisa
+        if ($payload['payment_total'] > $aggregateRemaining) {
+            abort(422, 'Nominal pembayaran melebihi total sisa hutang supplier.');
+        }
+
+        $amountToAllocate = $payload['payment_total'];
+
+        try {
+            foreach ($allUnpaid->sortBy('purchase_at') as $pur) {
+                if ($amountToAllocate <= 0) {
+                    break;
+                }
+
+                // lock baris purchase
+                $pur = Purchase::whereKey($pur->id)
+                    ->lockForUpdate()
+                    ->with(['returs.items', 'creditPurchase'])
+                    ->first();
+
+                // recompute exactly like store()
+                $totalReturNominal = $pur->returs
+                    ->flatMap(fn($r) => $r->items)
+                    ->sum('subtotal');
+
+                $initialPaid      = $pur->prePaid;
+                $creditPaidSoFar  = $pur->creditPurchase->sum('payment_total');
+                $alreadyPaid      = $initialPaid + $creditPaidSoFar;
+                $effectiveTotal   = $pur->total - $totalReturNominal;
+                $remainingBefore  = $effectiveTotal - $alreadyPaid;
+
+                if ($remainingBefore <= 0) {
+                    continue;
+                }
+
+                // alokasikan sejumlah mungkin
+                $alloc = min($remainingBefore, $amountToAllocate);
+
+                if ($alloc > $remainingBefore) {
+                    abort(422, "Nominal pembayaran melebihi sisa tagihan pembelian #{$pur->id}.");
+                }
+
+                // simpan pembayaran
+                $pur->creditPurchase()->create([
+                    'payDate'       => $payload['payDate'],
+                    'payment_total' => $alloc,
+                    'description'   => $payload['description'] ?? null,
+                ]);
+
+                // update status jika lunas
+                $newCreditPaid  = $creditPaidSoFar + $alloc;
+                $newAlreadyPaid = $initialPaid + $newCreditPaid;
+                if ($newAlreadyPaid >= $effectiveTotal) {
+                    $pur->status = 'paid';
+                    $pur->save();
+                }
+
+                $amountToAllocate -= $alloc;
+            }
+
+            return back()->with('success', 'Pembayaran bulk pembelian berhasil disimpan.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()
+                ->withInput()
+                ->withErrors(['db_error' => 'Gagal menyimpan pembayaran: ' . $e->getMessage()]);
+        } catch (\Exception $e) {
             return back()
                 ->withInput()
                 ->withErrors(['error' => 'Terjadi kesalahan, silakan coba lagi.']);

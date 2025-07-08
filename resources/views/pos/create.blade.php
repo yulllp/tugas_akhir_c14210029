@@ -280,25 +280,64 @@
       </form>
     </div>
   </div>
-
-  <div id="remainingModal" class="fixed inset-0 hidden bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
-      <h3 class="text-lg font-semibold mb-4 dark:text-white">Sisa Utang Pelanggan</h3>
-      <div id="remainingModalBody" class="mb-6 text-gray-900 dark:text-gray-200">
-        <!-- injected content -->
-      </div>
-      <div class="text-right">
-        <button onclick="closeRemainingModal()"
-          class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">
-          OK
-        </button>
-      </div>
-    </div>
-  </div>
 </x-layout>
 
+<div id="remainingModal"
+  class="fixed inset-0 hidden backdrop-blur-sm flex items-center justify-center z-[9999]">
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full p-6">
+    <h3 class="text-lg font-semibold mb-4 dark:text-white">
+      Sisa Utang Pelanggan
+    </h3>
+
+    <!-- we no longer overwrite this entire div -->
+    <div id="remainingModalBody" class="mb-6 text-gray-900 dark:text-gray-200">
+      <!-- spinner -->
+      <div id="remainingLoading" class="flex justify-center" role="status" aria-label="Loading">
+        <svg class="w-8 h-8 animate-spin text-gray-500" xmlns="http://www.w3.org/2000/svg"
+          fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+      </div>
+      <!-- hidden until loaded -->
+      <div id="remainingContent" class="hidden">
+        <!-- JS will inject here -->
+      </div>
+    </div>
+
+    <div class="text-right">
+      <button id="remainingOkBtn"
+        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded hidden">
+        OK
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="dpWarningModal"
+  class="fixed inset-0 hidden bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg max-w-sm w-full">
+    <h2 class="text-lg font-semibold mb-4 text-center">DP Kurang Minimum</h2>
+    <p class="mb-6 text-center">
+      Pembayaran DP harus minimal <strong><span id="dpPercentText"></span>%</strong> dari total.
+    </p>
+    <div class="flex justify-center gap-4">
+      <button id="dpProceedBtn"
+        class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded">
+        Lanjutkan
+      </button>
+      <button id="dpCancelBtn"
+        class="px-4 py-2 bg-red-200 hover:bg-red-300 text-red-800 rounded">
+        Batal Kredit
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
-  const currentUserRole = @json(Auth::user() - > role);
+  window.MIN_DP_PERCENT = {{ \App\Models\Setting::get('min_dp_percent', 20) }};
+  const currentUserRole = @json(Auth::user()->role);
   const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
   function toggleActionButtons(enable = true) {
@@ -465,27 +504,22 @@
   let pendingToggleState = false;
 
   creditToggle.addEventListener('change', function() {
-    // always require a customer first
     if (!customerInput.value.trim()) {
       alert('Harap masukkan nama pembeli untuk penjualan kredit.');
       this.checked = false;
       return;
     }
 
-    const customerId = $('#selected-customer-id').val();
-    const custName = customerInput.value;
-
-    //  — Owner: no modal, just toggle + show remaining
     if (currentUserRole === 'owner') {
+      const customerId = $('#selected-customer-id').val();
       isCredit = this.checked;
-      customerInput.disabled = this.checked;
+      customerInput.disabled = isCredit;
       if (isCredit) {
-        fetchAndShowRemaining(customerId, custName);
+        fetchAndShowRemaining(customerId, customerInput.value);
       }
       return;
     }
 
-    // — Non‑owner: need supervisor auth first
     if (this.checked) {
       this.checked = false;
       pendingToggleState = true;
@@ -495,6 +529,7 @@
       customerInput.disabled = false;
     }
   });
+
 
 
   function showCreditModal() {
@@ -539,7 +574,7 @@
 
           const customerId = $('#selected-customer-id').val();
           const custName = $('#customer').val();
-          fetchAndShowRemaining(custId, custName);
+          fetchAndShowRemaining(customerId, custName);
         } else {
           usernameInput.value = '';
           passwordInput.value = '';
@@ -554,11 +589,25 @@
     });
   }
 
+  document
+    .getElementById('remainingOkBtn')
+    .addEventListener('click', closeRemainingModal);
+
   function fetchAndShowRemaining(customerId, customerName) {
-    console.log('[fetchAndShowRemaining] called for:', customerId, customerName);
+    const modal = document.getElementById('remainingModal');
+    const spinner = document.getElementById('remainingLoading');
+    const content = document.getElementById('remainingContent');
+    const okButton = document.getElementById('remainingOkBtn');
+
+    // reset UI
+    spinner.style.display = 'flex';
+    content.classList.add('hidden');
+    okButton.classList.add('hidden');
+
+    modal.classList.remove('hidden');
 
     $.ajax({
-      url: remainingUrl,
+      url: "{{ route('credit.remaining') }}",
       method: 'GET',
       data: {
         customer_id: customerId
@@ -567,31 +616,33 @@
         'X-CSRF-TOKEN': csrfToken
       },
       success(data) {
-        console.log('[fetchAndShowRemaining] success data:', data);
         const rupiah = new Intl.NumberFormat('id-ID').format(data.remaining);
-        const html = `
+        content.innerHTML = `
         <p><strong>${customerName}</strong></p>
         <p>Sisa utang: <span class="font-semibold">Rp ${rupiah}</span></p>
       `;
-        $('#remainingModalBody').html(html);
-
-        // Show the modal
-        $('#remainingModal').removeClass('hidden');
-        console.log('[fetchAndShowRemaining] modal classes now:', $('#remainingModal').attr('class'));
       },
-      error(jqXHR, textStatus, errorThrown) {
-        console.error('[fetchAndShowRemaining] ERROR', textStatus, errorThrown);
-        $('#remainingModalBody').html('<p>Gagal mengambil data sisa utang.</p>');
-        $('#remainingModal').removeClass('hidden');
+      error() {
+        content.innerHTML = `
+        <p class="text-red-600">Gagal mengambil data sisa utang. Coba lagi.</p>
+      `;
+      },
+      complete() {
+        // hide spinner, show content & OK button
+        spinner.style.display = 'none';
+        content.classList.remove('hidden');
+        okButton.classList.remove('hidden');
       }
     });
   }
 
-
   function closeRemainingModal() {
-    $('#remainingModal').addClass('hidden');
+    const modal = document.getElementById('remainingModal');
+    const content = document.getElementById('remainingContent');
+    modal.classList.add('hidden');
+    // clear for next time
+    content.innerHTML = '';
   }
-
 
   customerInput.addEventListener('input', function() {
     if (this.value.trim() === '') {
@@ -799,7 +850,6 @@
   const summaryText = document.getElementById('summaryText');
 
   summaryBtn.addEventListener('click', function() {
-
     summaryBtn.disabled = true;
     summarySpinner.classList.remove('hidden');
     summaryText.textContent = 'Memuat...';
@@ -808,69 +858,91 @@
     let xpaid = parseInt(document.getElementById('prePaid').value.replace(/\D/g, '')) || 0;
     const xcustomerId = document.getElementById('selected-customer-id').value || null;
     let xisCredit = document.getElementById('credit-toggle').checked;
+    const dpPercent = (xpaid / xtotal) * 100;
 
-    $.get("{{ route('transactions.temp') }}", function(tempItems) {
-
-      toggleActionButtons(false);
-
-      if (tempItems.length === 0) {
-        alert('Tidak ada item dalam penjualan.');
-        resetButton();
-        toggleActionButtons(true);
-        return;
-      }
-
-      if (!xisCredit && xpaid < xtotal) {
-        alert('Pembayaran kurang dari total. Hanya diizinkan untuk kredit.');
-        resetButton();
-        toggleActionButtons(true);
-        return;
-      }
-
-      if (xisCredit && xpaid >= xtotal) {
-        xisCredit = false;
-        creditToggle.checked = false;
-      }
-
-      const customInput = document.querySelector('input[name="transaction_at"]');
-
+    // helper to fill in and show the summary modal
+    function showSummary() {
       const summaryCustomer = document.getElementById('summary-customer');
       const summaryStatus = document.getElementById('summary-status');
       const summaryTotal = document.getElementById('summary-total');
       const summaryPaid = document.getElementById('summary-paid');
       const summaryChange = document.getElementById('summary-change');
-      const summaryItems = document.getElementById('summary-items');
-      const finalTransactionInput = document.getElementById('finalTransactionInput');
-
+      const finalInput = document.getElementById('finalTransactionInput');
       const change = Math.max(0, xpaid - xtotal);
 
-      summaryCustomer.textContent = document.getElementById('customer')?.value || '-';
+      summaryCustomer.textContent = document.getElementById('customer').value || '-';
       summaryStatus.textContent = xisCredit ? 'Kredit' : 'Lunas';
       summaryTotal.textContent = formatRupiah(xtotal);
       summaryPaid.textContent = formatRupiah(xpaid);
       summaryChange.textContent = formatRupiah(change);
 
+      // clamp paid to total
       xpaid = Math.min(xpaid, xtotal);
 
-      finalTransactionInput.value = JSON.stringify({
+      finalInput.value = JSON.stringify({
         total: xtotal,
         paid: xpaid,
         customer_id: xcustomerId,
         credit: xisCredit
-        // You no longer need to send items, they're in DB already
       });
-
-      console.log(finalTransactionInput);
 
       showModal();
       resetButton();
       toggleActionButtons(true);
+    }
 
-    }).fail(function() {
-      alert('Gagal mengambil data penjualan sementara.');
-      resetButton();
-      toggleActionButtons(true);
-    });
+    $.get("{{ route('transactions.temp') }}", function(tempItems) {
+        toggleActionButtons(false);
+
+        if (!tempItems.length) {
+          alert('Tidak ada item dalam penjualan.');
+          resetButton();
+          toggleActionButtons(true);
+          return;
+        }
+
+        if (!xisCredit && xpaid < xtotal) {
+          alert('Pembayaran kurang dari total. Hanya diizinkan untuk kredit.');
+          resetButton();
+          toggleActionButtons(true);
+          return;
+        }
+
+        if (xisCredit && xpaid >= xtotal) {
+          xisCredit = false;
+          creditToggle.checked = false;
+        }
+
+        if (xisCredit && dpPercent < window.MIN_DP_PERCENT) {
+          // show warning
+          document.getElementById('dpPercentText').textContent = window.MIN_DP_PERCENT;
+          document.getElementById('dpWarningModal').classList.remove('hidden');
+
+          // Proceed button now calls the same summary logic
+          document.getElementById('dpProceedBtn').onclick = () => {
+            document.getElementById('dpWarningModal').classList.add('hidden');
+            showSummary();
+          };
+          document.getElementById('dpCancelBtn').onclick = () => {
+            document.getElementById('dpWarningModal').classList.add('hidden');
+            // deactivate credit and leave the user on the form
+            xisCredit = false;
+            creditToggle.checked = false;
+          };
+
+          resetButton();
+          toggleActionButtons(true);
+          return;
+        }
+
+        // no warning → go straight to summary
+        showSummary();
+      })
+      .fail(function() {
+        alert('Gagal mengambil data penjualan sementara.');
+        resetButton();
+        toggleActionButtons(true);
+      });
 
     function resetButton() {
       summaryBtn.disabled = false;

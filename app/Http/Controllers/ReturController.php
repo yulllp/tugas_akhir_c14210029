@@ -21,7 +21,14 @@ class ReturController extends Controller
      */
     public function index()
     {
-        return view('retur.index', [
+        return view('retur.indexCust', [
+            'title' => 'Retur',
+        ]);
+    }
+
+    public function index2()
+    {
+        return view('retur.indexSupp', [
             'title' => 'Retur',
         ]);
     }

@@ -5,6 +5,7 @@ use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\CreditPaymentController;
 use App\Http\Controllers\CreditPurchaseController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DamagedController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LoginController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReturController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StockFlowController;
 use App\Http\Controllers\StokOpnameScheduleController;
 use App\Http\Controllers\SupplierController;
@@ -81,6 +83,8 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/credit/customer', [CreditPaymentController::class, 'index'])->name('customers.credits.index');
         Route::get('/credit/supplier', [CreditPurchaseController::class, 'index'])->name('suppliers.credits.index');
+        Route::post('credit-payments/bulk', [CreditPaymentController::class, 'bulkStore'])->name('credit-payments.bulk-store');
+        Route::post('credit-purchase/bulk', [CreditPurchaseController::class, 'bulkStore'])->name('credit-purchase.bulk-store');
 
         Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
         Route::post('/customers/create', [CustomerController::class, 'store'])->name('customers.store');
@@ -96,12 +100,13 @@ Route::middleware('auth')->group(function () {
         Route::put('/suppliers/{supplier}/edit', [SupplierController::class, 'update'])->name('suppliers.update');
         Route::delete('/suppliers/{id}/delete', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
 
-        Route::get('/returs', [ReturController::class, 'index'])->name('returs.index');
+        Route::get('/retur/customer', [ReturController::class, 'index'])->name('returs.index-customer');
         Route::get('/transactions/{transaction}/retur', [ReturController::class, 'createTransaction'])->name('returs.create.transaction');
         Route::get('/purchases/{purchase}/retur', [ReturController::class, 'createPurchase'])->name('returs.create.purchase');
         Route::post('/transactions/retur', [ReturController::class, 'storeTransaction'])->name('returs.store.transaction');
         Route::post('/purchases/retur', [ReturController::class, 'storePurchase'])->name('returs.store.purchase');
         Route::get('/returs/{id}', [ReturController::class, 'show'])->name('returs.show');
+        Route::get('/retur/supplier', [ReturController::class, 'index2'])->name('returs.index-supplier');
 
         Route::get('/opnames', [StokOpnameScheduleController::class, 'index'])->name('opnames.index');
         Route::get('/opnames/{stockOpnameSchedule}', [StokOpnameScheduleController::class, 'show'])->name('opnames.show');
@@ -130,5 +135,10 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/push/subscribe', [PushSubscriptionController::class, 'subscribe'])->name('push.subscribe');
         Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe']);
+
+        Route::get('settings', [SettingController::class, 'edit'])->name('settings.edit');
+        Route::post('settings', [SettingController::class, 'update'])->name('settings.update');
+
+        Route::get('/damages', [DamagedController::class, 'index'])->name('damages.index');
     });
 });

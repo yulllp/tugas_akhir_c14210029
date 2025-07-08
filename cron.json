@@ -1,0 +1,9 @@
+{
+  "jobs": [
+    {
+      "name": "Send Credit Reminders",
+      "command": "php /var/www/html/artisan credits:remind",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

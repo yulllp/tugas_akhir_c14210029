@@ -10,11 +10,12 @@ class Kernel extends ConsoleKernel
   /**
    * Define the application's command schedule.
    */
-  protected function schedule(Schedule $schedule): void
+  protected $commands = [
+    \App\Console\Commands\SendCreditReminders::class,
+  ];
+  protected function schedule(Schedule $schedule)
   {
-    $schedule->command('stokopname:send-reminders')
-      ->everyMinute()
-      ->withoutOverlapping();
+    $schedule->command('credits:remind')->dailyAt('09:00')->timezone('Asia/Jayapura');
   }
 
   /**

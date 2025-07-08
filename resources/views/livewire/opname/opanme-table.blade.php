@@ -245,7 +245,6 @@
         </div>
     </section>
 
-    <!-- Main modal -->
     <div
         id="crud-modal"
         tabindex="-1"
@@ -285,19 +284,27 @@
                 <!-- Modal body -->
                 <form method="POST" action="{{ route('opnames.store') }}" class="p-4 md:p-5">
                     @csrf
+
                     <div class="grid gap-4 mb-4 grid-cols-1">
+                        <!-- MONTH PICKER -->
                         <div class="col-span-1 max-w-sm">
                             <label
-                                for="datetime_opname"
+                                for="month_opname"
                                 class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                                Tanggal & Waktu Opname (Waktu Jayapura)
+                                Bulan Opname (Waktu Jayapura)
                             </label>
-                                <input
-                                    id="datetime_opname"
-                                    name="tanggal_opname"
-                                    type="datetime-local"
-                                    class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">
+                            <input
+                                id="month_opname"
+                                type="month"
+                                class="block w-full p-2.5 text-sm text-gray-900 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">
                         </div>
+
+                        <!-- HIDDEN DATETIME THAT WILL BE SUBMITTED -->
+                        <input
+                            id="datetime_opname"
+                            name="tanggal_opname"
+                            type="datetime-local"
+                            class="hidden" />
 
                         <div class="col-span-1">
                             <label
@@ -331,4 +338,48 @@
             </div>
         </div>
     </div>
+    <script>
+        (function() {
+            const monthInput = document.getElementById('month_opname');
+            const datetimeInput = document.getElementById('datetime_opname');
+
+            // helper: get a JS Date "now" in Jayapura tz
+            function nowJayapura() {
+                // first get a locale-string for Asia/Jayapura, then parse back into Date
+                const s = new Date().toLocaleString('en-US', {
+                    timeZone: 'Asia/Jayapura'
+                });
+                return new Date(s);
+            }
+
+            // take the selected month + current Jayapura day/time ⇒ build a proper "YYYY-MM-DDTHH:mm" string
+            function updateDateTime() {
+                if (!monthInput.value) return;
+                const [yy, mm] = monthInput.value.split('-');
+                const now = nowJayapura();
+                const dd = String(now.getDate()).padStart(2, '0');
+                const hh = String(now.getHours()).padStart(2, '0');
+                const min = String(now.getMinutes()).padStart(2, '0');
+                datetimeInput.value = `${yy}-${mm}-${dd}T${hh}:${min}`;
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // default & min = current Jayapura month
+                const now = nowJayapura();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                monthInput.min = `${y}-${m}`;
+                monthInput.value = `${y}-${m}`;
+
+                // initial fill
+                updateDateTime();
+
+                // live‐update every minute
+                setInterval(updateDateTime, 60 * 1000);
+            });
+
+            // whenever user picks a NEW month, update the hidden datetime
+            monthInput.addEventListener('change', updateDateTime);
+        })();
+    </script>
 </div>
