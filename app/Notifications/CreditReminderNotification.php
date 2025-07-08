@@ -38,30 +38,27 @@ class CreditReminderNotification extends Notification
     public function toWebPush($notifiable, $notification)
     {
         $title = "⏰ Pengingat Utang & Piutang";
-
+        
         // Build customer list
         $customerBody = "- Pelanggan:\n";
         foreach ($this->customers as $customer) {
             $customerBody .= "{$customer['name']}: Rp. " . number_format($customer['amount'], 0, ',', '.') . "\n";
         }
-
+        
         // Build supplier list
         $supplierBody = "- Supplier:\n";
         foreach ($this->suppliers as $supplier) {
             $supplierBody .= "{$supplier['name']}: Rp. " . number_format($supplier['amount'], 0, ',', '.') . "\n";
         }
-
-        $body = $customerBody . "\n" . $supplierBody;
+        
+        $body = trim($customerBody) . "\n" . trim($supplierBody);
         $icon = url('/public/stock.png'); // Make sure to add this icon
         $url = route('customers.credits.index'); // Or any other relevant route
 
         return (new WebPushMessage)
             ->title($title)
-            ->body('—')           // placeholder
-            ->options([
-                'body' => $body,    // force the full string
-                'icon' => $icon,
-            ])
+            ->body($body)
+            ->icon($icon)
             ->data(['url' => $url]);
     }
 }
