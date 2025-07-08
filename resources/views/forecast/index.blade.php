@@ -186,6 +186,7 @@
           <thead>
             <tr class="bg-gray-100 dark:bg-gray-700">
               <th class="px-4 py-2 text-left">Produk</th>
+              <th class="px-4 py-2 text-left">Stok Saat Ini</th> 
               <th class="px-4 py-2 text-left">Penjualan Sebelumnya</th>
               <th class="px-4 py-2 text-left">Prediksi</th>
               <th class="px-4 py-2 text-left">Saran</th>
@@ -196,6 +197,8 @@
             <tr class="border-t border-gray-200 dark:border-gray-700">
               <!-- Produk -->
               <td class="px-4 py-2">{{ $s['name'] }}</td>
+
+              <td class="px-4 py-2">{{ $s['current_stock'] }}</td>
 
               <!-- 2. Penjualan Sebelumnya -->
               <td class="px-4 py-2">

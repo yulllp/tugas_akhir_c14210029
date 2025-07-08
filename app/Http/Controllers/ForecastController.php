@@ -282,7 +282,7 @@ class ForecastController extends Controller
 
             // ── 5) Build suggestion row ──
             $stock = $product->stock;
-            $diff  = $predQty - $displaySales;
+            $diff  = $displaySales - $stock;
 
             $hasForecast = ! empty(array_filter($forecastSeries)); 
 
