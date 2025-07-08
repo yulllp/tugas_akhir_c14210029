@@ -227,10 +227,10 @@ class CreditPaymentController extends Controller
         $reminderInterval = (int) Setting::get('credit_reminder_days', 7);
         $lastReminderDate = Setting::get('last_credit_reminder_date');
         // // Check if we should send reminders today
-        // if ($lastReminderDate && now()->diffInDays($lastReminderDate) < $reminderInterval) {
-        //     Log::info('Reminder interval not reached yet.');
-        //     return;
-        // }
+        if ($lastReminderDate && now()->diffInDays($lastReminderDate) < $reminderInterval) {
+            Log::info('Reminder interval not reached yet.');
+            return;
+        }
 
         // Get customers with credit
         $customers = Transaction::where('status', 'unpaid')
