@@ -74,8 +74,7 @@
       // Initial fetch
       fetchReminders();
 
-      // Poll every 10 seconds (10000 ms)
-      setInterval(fetchReminders, 10000);
+      setInterval(fetchReminders, 60000);
     });
   </script>
 </body>
